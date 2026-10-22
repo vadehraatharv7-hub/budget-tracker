@@ -44,5 +44,5 @@ for (let back = 0; back < 3; back++) {
 }
 db.prepare("INSERT INTO recurring(kind,amount,currency,category_id,note,day,last_run) VALUES('expense',6400,'DKK',?,'Rent',1,?)").run(id('Rent'), localDate(today).slice(0, 7));
 db.prepare("INSERT INTO recurring(kind,amount,currency,category_id,note,day,last_run) VALUES('expense',129,'DKK',?,'Netflix',12,?)").run(id('Subscriptions'), localDate(today).slice(0, 7));
-db.prepare('INSERT INTO goals(name,icon,target,saved,deadline) VALUES(?,?,?,?,?)').run('Trip to India', '✈️', 12000, 3200, localDate(new Date(today.getFullYear(), today.getMonth() + 5, 1)));
+db.prepare('INSERT INTO goals(name,icon,target,saved,deadline) VALUES(?,?,?,?,?)').run('Trip home', 'plane', 12000, 3200, localDate(new Date(today.getFullYear(), today.getMonth() + 5, 1)));
 console.log('Demo data inserted:', db.prepare('SELECT COUNT(*) n FROM expenses').get().n, 'expenses');

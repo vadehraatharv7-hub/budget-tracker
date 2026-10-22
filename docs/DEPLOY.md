@@ -8,7 +8,7 @@ Users ─▶ https://budget.example.com ─▶ Cloudflare (TLS, WAF, optional Ac
 
 push to main ─▶ CI ─▶ Deploy ─▶ GitHub runner joins your tailnet (tag:ci)
                                    └─ tailscale ssh deploy@budget-tracker "sudo budget-update <sha>"
-                                        └─ git fetch · npm ci · restart · health check · auto-rollback
+                                        └─ git fetch · npm ci · build web app · swap dist · restart · health check · auto-rollback
 ```
 
 - **Cloudflare Tunnel publishes the app.** The container makes an outbound connection to Cloudflare, so you open no
@@ -19,7 +19,7 @@ push to main ─▶ CI ─▶ Deploy ─▶ GitHub runner joins your tailnet (ta
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| `ci.yml` | PRs, called by deploy | `npm run check`, `npm test` (30 API/auth/security/proxy tests), `npm audit`, dependency review (PR) |
+| `ci.yml` | PRs, called by deploy | `npm run check` (TypeScript), `npm run test:web` (25 unit tests), `npm run build`, `npm test` (41 API/auth/security/proxy/static tests), `npm audit`, dependency review (PR) |
 | `docker.yml` | PRs touching the image, pushes to main, tags | builds, smoke-tests (non-root, auth enforced), publishes to GHCR with provenance + SBOM |
 | `codeql.yml` | PRs, main, weekly | CodeQL `security-extended` for JavaScript |
 | `deploy.yml` | push to main, manual | CI → deploy over Tailscale; a manual run deploys any ref (**rollback**) |

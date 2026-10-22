@@ -1,10 +1,10 @@
-// Generates the PWA icons (no image dependencies): a budget ring on a blue→violet gradient.
+// Generates the PWA icons (no image dependencies): a budget ring on the flat accent blue.
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 
-const OUT = resolve(fileURLToPath(new URL('../public/icons', import.meta.url)));
+const OUT = resolve(fileURLToPath(new URL('../web/public/icons', import.meta.url)));
 mkdirSync(OUT, { recursive: true });
 
 const crcTable = Array.from({ length: 256 }, (_, n) => {
@@ -39,7 +39,7 @@ function png(size, pixel) {
 }
 
 const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
-const C1 = [42, 120, 214], C2 = [98, 80, 214];
+const C1 = [31, 79, 216], C2 = [31, 79, 216]; // flat accent blue, same as the UI
 
 function render(size, scale) {
   const SS = 3; // supersampling

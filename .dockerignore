@@ -2,5 +2,6 @@ node_modules
 .env
 .env.*
 data
+dist
 .git
 *.log

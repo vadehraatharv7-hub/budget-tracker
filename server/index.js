@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize, resolve } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { db, allSettings, getSetting, setSetting, num, cleanColor, cleanIcon, cleanText } from './db.js';
@@ -11,13 +11,13 @@ import { startScheduler } from './scheduler.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const PASSWORD = process.env.APP_PASSWORD || '';
-const PUBLIC = resolve(fileURLToPath(new URL('../public', import.meta.url)));
+const PUBLIC = process.env.STATIC_DIR ? resolve(process.env.STATIC_DIR) : resolve(fileURLToPath(new URL('../dist', import.meta.url))); // output of `npm run build`
 const CURRENCIES = ['DKK', 'INR'];
 
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png',
-  '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+  '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
 };
 
 // ---------- helpers ----------
@@ -311,7 +311,7 @@ route('POST', '/api/push/subscribe', 'session', async ({ body }) => {
 });
 route('POST', '/api/push/unsubscribe', 'session', async ({ body }) => { removeSubscription(body.endpoint); return { ok: true }; });
 route('POST', '/api/push/test', 'session', async () => {
-  const sent = await notify({ title: '✅ Notifications work', body: 'You’ll get budget alerts and reminders here.', tag: 'test' });
+  const sent = await notify({ title: 'Notifications are working', body: 'You will receive budget alerts and reminders on this device.', tag: 'test' });
   return { sent };
 });
 
@@ -397,7 +397,7 @@ route('POST', '/api/goals', 'session', async ({ body }) => {
   if (!String(body.name || '').trim() || !(target > 0)) throw bad('Name and a positive target are required');
   if (body.deadline && !validDate(body.deadline)) throw bad('Deadline must be YYYY-MM-DD');
   const info = db.prepare('INSERT INTO goals(name,icon,target,saved,deadline) VALUES(?,?,?,?,?)')
-    .run(cleanText(body.name, 60), cleanIcon(body.icon, '🎯'), target, Math.max(0, parseAmount(body.saved) || 0), body.deadline || null);
+    .run(cleanText(body.name, 60), cleanIcon(body.icon, 'target'), target, Math.max(0, parseAmount(body.saved) || 0), body.deadline || null);
   return db.prepare('SELECT * FROM goals WHERE id = ?').get(info.lastInsertRowid);
 });
 route('POST', '/api/goals/:id/contribute', 'session', async ({ body, params }) => {
@@ -434,7 +434,7 @@ route('POST', '/api/restore', 'session', async ({ body }) => {
       for (const row of body[t] || []) {
         const r = { ...row };
         if (t === 'categories') { r.name = cleanText(r.name, 40) || 'Category'; r.icon = cleanIcon(r.icon); r.color = cleanColor(r.color); }
-        if (t === 'goals') { r.name = cleanText(r.name, 60) || 'Goal'; r.icon = cleanIcon(r.icon, '🎯'); }
+        if (t === 'goals') { r.name = cleanText(r.name, 60) || 'Goal'; r.icon = cleanIcon(r.icon, 'target'); }
         if (t === 'expenses' || t === 'income') { if (!validDate(String(r.date))) continue; if (!CURRENCIES.includes(r.currency)) continue; r.note = cleanText(r.note, 200); r.source = cleanText(r.source, 120); }
         ins.run(...cols.map((c) => (typeof r[c] === 'object' ? null : r[c] ?? null)));
       }
@@ -540,24 +540,28 @@ async function serveStatic(req, res, url) {
   let p = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, '');
   if (p === '/' || p === '\\') p = '/index.html';
   const file = join(PUBLIC, p);
-  if (!file.startsWith(PUBLIC)) return send(res, 403, 'Forbidden');
+  if (file !== PUBLIC && !file.startsWith(PUBLIC + sep)) return send(res, 403, 'Forbidden');
   try {
     const st = await stat(file);
     if (!st.isFile()) throw new Error('not file');
     const data = await readFile(file);
-    const isSw = p === '/sw.js';
     res.writeHead(200, {
       'content-type': MIME[extname(file)] || 'application/octet-stream',
-      // Always revalidate app shell so updates arrive; icons can be cached.
-      'cache-control': p.startsWith('/icons/') ? 'public, max-age=86400' : 'no-cache',
-      ...(isSw ? { 'service-worker-allowed': '/' } : {}),
+      // Build output under /assets is content-hashed, so it can be cached forever; everything else is revalidated so a deploy shows up at once.
+      'cache-control': p.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : p.startsWith('/icons/') ? 'public, max-age=86400' : 'no-cache',
+      ...(p === '/sw.js' ? { 'service-worker-allowed': '/' } : {}),
     });
     res.end(data);
   } catch {
-    // SPA fallback
-    const data = await readFile(join(PUBLIC, 'index.html'));
-    res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-cache' });
-    res.end(data);
+    // A missing file (script, image, font) is a real 404; only extension-less paths are app routes served by the single-page app.
+    if (extname(p)) return send(res, 404, 'Not found');
+    try {
+      const data = await readFile(join(PUBLIC, 'index.html'));
+      res.writeHead(200, { 'content-type': MIME['.html'], 'cache-control': 'no-cache' });
+      res.end(data);
+    } catch {
+      send(res, 503, 'The web app has not been built yet. Run "npm run build".');
+    }
   }
 }
 

@@ -4,8 +4,8 @@ A self-hosted budget tracker PWA for your homelab. Log expenses and income in **
 **categories**, and watch a *safe-to-spend-per-day* number tell you whether you're on track. Works on phone and laptop,
 installs to the home screen, sends push notifications, and can be automated from the iOS **Shortcuts** app.
 
-- Zero build step. Node 22.5+ (uses built-in `node:sqlite`), one dependency (`web-push`).
-- Rates: ECB reference rates via [Frankfurter](https://frankfurter.dev) (fallback open.er-api.com), refreshed once a day, with history. Each transaction stores its original amount, currency **and the rate at the time**, so history never drifts. Manual rate override on the Convert tab.
+- Server: Node 22.9+ with built-in `node:sqlite` and one runtime dependency (`web-push`). Web app: React + TypeScript, built with Vite into `dist/`.
+- Rates: ECB reference rates via [Frankfurter](https://frankfurter.dev) (fallback open.er-api.com), refreshed once a day, with history. Each transaction stores its original amount, currency **and the rate at the time**, so history never drifts. Manual rate override on the Currency screen.
 - Data lives in one SQLite file (`DB_PATH`). Export CSV / JSON backup from Settings.
 
 ## Run it
@@ -18,6 +18,7 @@ or without Docker:
 
 ```bash
 npm install
+npm run build                       # builds the web app into dist/
 APP_PASSWORD=secret npm start
 ```
 
@@ -62,10 +63,12 @@ Then trigger it from Siri, the Action Button, Back Tap, or the home screen.
 
 ## Features
 
-Quick-add (type `120 netto groceries` or `₹450 auto`, frequent categories first, remembers note→category) · edit/delete ·
-income + cash flow · per-category budgets with green/amber (≥75%)/red states · safe-to-spend per day · budget pace, daily and
-6-month charts · "ways to spend less" insights · recurring items (rent, Spotify, salary) · savings goals with monthly target ·
-app lock (PIN + Face ID/Touch ID) · push alerts at 75%/100%, daily reminder, Sunday recap · offline entry queue · CSV import/export, JSON backup/restore.
+- **Transactions**: quick entry (type `120 netto groceries` or `₹450 auto`), frequent categories first, remembered merchant-to-category, edit and delete, search and filters, CSV and JSON export, bank CSV import.
+- **Budgeting**: a monthly total, per-category limits, spend against limit with 75% and 100% thresholds, an even-pace marker, projected month end and a daily allowance; recurring items; savings goals with a monthly target.
+- **Reporting**: cash flow (income, spending, net), spending over the month, six-month history, insights and top merchants.
+- **Two currencies**: DKK and INR with the daily ECB rate, history and a manual override; every transaction keeps the rate it was recorded at.
+- **Security**: password, app lock (6-digit PIN with optional Face ID or Touch ID), strict CSP, request throttling.
+- **Everywhere**: installable PWA, push alerts, offline entry queue, iOS Shortcuts API, responsive from phone to widescreen, light and dark.
 
 ## CI/CD
 
@@ -79,10 +82,26 @@ trackers (the only outbound call is the daily exchange-rate fetch from the serve
 
 See [SECURITY-AUDIT.md](SECURITY-AUDIT.md) for the full audit, fixes and residual risks.
 
-## Layout
+## Development
+
+```bash
+npm install
+npm run dev          # API on :3000 (restarts on change)
+npm run dev:web      # web app on :5173 with hot reload, proxying /api to :3000
+npm run check        # server syntax + TypeScript
+npm test             # server tests (41)     npm run test:web   # web unit tests
+npm run build        # production build into dist/
+```
 
 ```
 server/   index.js (API + static)  db.js  rates.js  summary.js  push.js  scheduler.js
-public/   index.html  app.js  charts.js  styles.css  sw.js  manifest.webmanifest  icons/
+web/      index.html  vite.config.ts  public/ (manifest, service worker, icons)
+  src/    main.tsx  App.tsx  routes/ (Overview, Transactions, Budget, Currency, Settings, Login)
+          components/ (shell, dialogs, charts)  hooks/  lib/ (api, money, dates, lock, push, parseQuick, ...)
+          styles/ (tokens, base, ui, layout)
+test/     API, auth, security, proxy, throttling and static-serving tests
 scripts/  make-icons.js  seed-demo.js
 ```
+
+The design system lives in `web/src/styles/`: colour and spacing tokens (`tokens.css`), shared primitives (`ui.css`) and page layout
+(`layout.css`). Colour is reserved for status and data; the rest of the UI is neutral with a single accent.

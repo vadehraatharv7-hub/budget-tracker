@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
-  icon TEXT NOT NULL DEFAULT '💸',
+  icon TEXT NOT NULL DEFAULT 'tag',
   color TEXT NOT NULL DEFAULT '#2a78d6',
   budget REAL NOT NULL DEFAULT 0,
   sort INTEGER NOT NULL DEFAULT 0,
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS recurring (
 CREATE TABLE IF NOT EXISTS goals (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
-  icon TEXT NOT NULL DEFAULT '🎯',
+  icon TEXT NOT NULL DEFAULT 'target',
   target REAL NOT NULL,
   saved REAL NOT NULL DEFAULT 0,
   deadline TEXT
@@ -105,16 +105,16 @@ if (!getSetting('api_token')) setSetting('api_token', randomBytes(24).toString('
 // Colors follow the validated 8-slot categorical order used by the UI.
 if (db.prepare('SELECT COUNT(*) AS n FROM categories').get().n === 0) {
   const seed = [
-    ['Rent', '🏠', '#2a78d6'],
-    ['Groceries', '🛒', '#eb6834'],
-    ['Transport', '🚆', '#eda100'],
-    ['Eating out', '🍜', '#1baf7a'],
-    ['Subscriptions', '📺', '#e87ba4'],
-    ['Shopping', '🛍️', '#008300'],
-    ['Health', '💊', '#e34948'],
-    ['Education', '📚', '#6250d6'],
-    ['Travel', '✈️', '#7aa7e8'],
-    ['Other', '📦', '#8b8a85'],
+    ['Rent', 'house', '#2a78d6'],
+    ['Groceries', 'shopping-cart', '#eb6834'],
+    ['Transport', 'train-front', '#eda100'],
+    ['Eating out', 'utensils', '#1baf7a'],
+    ['Subscriptions', 'tv', '#e87ba4'],
+    ['Shopping', 'shopping-bag', '#008300'],
+    ['Health', 'heart-pulse', '#e34948'],
+    ['Education', 'graduation-cap', '#6250d6'],
+    ['Travel', 'plane', '#7aa7e8'],
+    ['Other', 'package', '#8b8a85'],
   ];
   const ins = db.prepare('INSERT INTO categories(name,icon,color,sort) VALUES(?,?,?,?)');
   seed.forEach(([n, i, c], idx) => ins.run(n, i, c, idx));
@@ -125,9 +125,29 @@ export const num = (v, d = 0) => (Number.isFinite(Number(v)) ? Number(v) : d);
 // ---- input sanitisers shared by API and restore ----
 /** Category colours end up in style attributes — accept strict #rrggbb only. */
 export const cleanColor = (v, fallback = '#8b8a85') => (/^#[0-9a-fA-F]{6}$/.test(String(v)) ? String(v) : fallback);
-/** Icons are short emoji strings; strip anything that could form markup. */
-export const cleanIcon = (v, fallback = '💸') => {
-  const t = [...String(v ?? '').replace(/[<>&"'`\\]/g, '').trim()].slice(0, 4).join('');
-  return t || fallback;
+/**
+ * Category and goal icons are stored as slugs ("shopping-cart") that the frontend maps to line icons. Anything else
+ * (including the emoji the first version stored) is converted or replaced, so markup can never reach the page.
+ */
+const ICON_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const EMOJI_TO_SLUG = {
+  '🏠': 'house', '🛒': 'shopping-cart', '🍜': 'utensils', '🚆': 'train-front', '📺': 'tv', '🛍️': 'shopping-bag', '🛍': 'shopping-bag',
+  '💊': 'heart-pulse', '📚': 'graduation-cap', '✈️': 'plane', '✈': 'plane', '📦': 'package', '🎯': 'target', '💸': 'tag', '💰': 'banknote',
+  '🎟️': 'film', '🎟': 'film',
+};
+export const cleanIcon = (v, fallback = 'tag') => {
+  const raw = String(v ?? '').trim();
+  if (raw.length <= 30 && ICON_SLUG.test(raw)) return raw;
+  return EMOJI_TO_SLUG[raw] ?? fallback;
 };
 export const cleanText = (v, max) => String(v ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, max);
+
+// One-time migration of icons stored by the first version of the app (emoji) to slugs.
+for (const r of db.prepare('SELECT id, icon FROM categories').all()) {
+  const next = cleanIcon(r.icon);
+  if (next !== r.icon) db.prepare('UPDATE categories SET icon = ? WHERE id = ?').run(next, r.id);
+}
+for (const r of db.prepare('SELECT id, icon FROM goals').all()) {
+  const next = cleanIcon(r.icon, 'target');
+  if (next !== r.icon) db.prepare('UPDATE goals SET icon = ? WHERE id = ?').run(next, r.id);
+}

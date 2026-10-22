@@ -106,7 +106,8 @@ export function buildSummary(month, todayStr = localDate(new Date())) {
   return s;
 }
 
-const fmt = (n, base) => (base === 'INR' ? `₹${Math.round(n).toLocaleString('en-IN')}` : `${Math.round(n).toLocaleString('en-US')} kr`);
+// Same notation as the app: "DKK 1,235" and "₹1,235".
+export const fmt = (n, base) => (base === 'INR' ? `₹${Math.round(n).toLocaleString('en-IN')}` : `DKK ${Math.round(n).toLocaleString('en-GB')}`);
 
 function buildInsights(s) {
   const out = [];
@@ -114,26 +115,27 @@ function buildInsights(s) {
   const budgeted = s.categories.filter((c) => c.budget > 0);
 
   if (s.budget === 0) {
-    out.push({ kind: 'info', text: 'Set a monthly budget and category limits — you can’t cut what you haven’t measured.' });
+    out.push({ kind: 'info', text: 'Set a monthly budget and category limits to track spending against a plan.' });
     return out;
   }
   for (const c of budgeted.filter((c) => c.spent > c.budget)) {
-    out.push({ kind: 'bad', text: `${c.icon} ${c.name} is over by ${fmt(c.spent - c.budget, b)}.` });
+    out.push({ kind: 'bad', text: `${c.name} is ${fmt(c.spent - c.budget, b)} over its limit.` });
   }
   if (s.isCurrent) {
     for (const c of budgeted.filter((c) => c.spent <= c.budget && c.projected > c.budget * 1.05 && c.count >= 4)) {
-      out.push({ kind: 'warn', text: `${c.icon} ${c.name} is on track to hit ${fmt(c.projected, b)} vs a ${fmt(c.budget, b)} limit — ease off by ${fmt((c.projected - c.budget) / Math.max(1, s.daysLeft), b)}/day.` });
+      const perDay = (c.projected - c.budget) / Math.max(1, s.daysLeft);
+      out.push({ kind: 'warn', text: `${c.name} is on course for ${fmt(c.projected, b)} against a ${fmt(c.budget, b)} limit. Spending ${fmt(perDay, b)} less per day keeps it within the limit.` });
     }
-    if (s.projected > s.budget) out.push({ kind: 'warn', text: `At today’s pace you’ll finish the month ${fmt(s.projected - s.budget, b)} over budget.` });
-    else if (s.dayNow >= 5) out.push({ kind: 'good', text: `On pace to finish about ${fmt(s.budget - s.projected, b)} under budget.` });
+    if (s.projected > s.budget) out.push({ kind: 'warn', text: `At the current pace the month ends ${fmt(s.projected - s.budget, b)} over budget.` });
+    else if (s.dayNow >= 5) out.push({ kind: 'good', text: `On course to finish about ${fmt(s.budget - s.projected, b)} under budget.` });
   }
   const worst = s.categories.filter((c) => c.prev > 0 && c.spent - c.prev > 0 && s.dayNow >= 10)
     .sort((a, b2) => (b2.spent - b2.prev) - (a.spent - a.prev))[0];
   if (worst && worst.spent > worst.prev * 1.2) {
-    out.push({ kind: 'warn', text: `${worst.icon} ${worst.name} is already ${fmt(worst.spent - worst.prev, b)} above last month’s total.` });
+    out.push({ kind: 'warn', text: `${worst.name} has already passed last month's total by ${fmt(worst.spent - worst.prev, b)}.` });
   }
-  if (s.noSpendDays >= 3) out.push({ kind: 'good', text: `${s.noSpendDays} no-spend days so far — keep stacking them.` });
-  if (s.unallocated < 0) out.push({ kind: 'warn', text: `Category limits add up to ${fmt(s.allocated, b)}, ${fmt(-s.unallocated, b)} more than your monthly budget.` });
+  if (s.noSpendDays >= 3) out.push({ kind: 'good', text: `${s.noSpendDays} days without spending so far this month.` });
+  if (s.unallocated < 0) out.push({ kind: 'warn', text: `Category limits add up to ${fmt(s.allocated, b)}, which is ${fmt(-s.unallocated, b)} more than the monthly budget.` });
   return out.slice(0, 5);
 }
 
