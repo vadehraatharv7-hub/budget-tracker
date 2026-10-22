@@ -44,7 +44,7 @@ All third-party actions are pinned to commit SHAs. Jobs get read-only tokens unl
 4. **Settings → OAuth clients → Generate**: scope **Auth Keys: Write**, tag `tag:ci`. Copy the client ID and secret.
 
 ### 2. The container
-In `Homelab/budget-tracker/`, set `tailscale_auth_key` (put it in `credential.auto.tfvars`, which is git-ignored) and
+In `Homelab/projects/budget-tracker/`, set `tailscale_auth_key` (put it in `Homelab/shared/proxmox/credential.auto.tfvars`, which is git-ignored and linked into the project) and
 `terraform apply`. The container joins the tailnet as `budget-tracker`, serves the app at
 `https://budget-tracker.<your-tailnet>.ts.net` and trusts only the `deploy` user's `sudo budget-update`.
 
