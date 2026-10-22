@@ -9,7 +9,14 @@ if (!keys) {
   setSetting('vapid', keys);
 }
 // Apple's push service rejects malformed subjects; use a real-looking mailto.
-webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:budget@example.com', keys.publicKey, keys.privateKey);
+// Accept a bare address ("me@example.com") as well as mailto:/https: — a bad value must never stop the app starting.
+let subject = (process.env.VAPID_SUBJECT || '').trim();
+if (/^[^@\s:]+@[^@\s]+$/.test(subject)) subject = `mailto:${subject}`;
+if (!/^(mailto:\S+@\S+|https:\/\/\S+)$/.test(subject)) {
+  if (subject) console.warn('[push] VAPID_SUBJECT is not a mailto: or https: URL; using a placeholder');
+  subject = 'mailto:budget@example.com';
+}
+webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
 
 export const vapidPublicKey = keys.publicKey;
 

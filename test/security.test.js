@@ -69,3 +69,11 @@ test('Shortcuts token brute force is throttled', async () => {
   assert.deepEqual(codes.slice(0, 8), Array(8).fill(401));
   assert.equal(codes[9], 429);
 });
+
+test('a malformed VAPID_SUBJECT does not stop the server starting', async () => {
+  for (const v of ['someone@example.com', 'not a url', 'ftp://x']) {
+    const t = await startServer({ VAPID_SUBJECT: v });
+    assert.equal((await t.call('/api/session')).status, 200, v);
+    await t.stop();
+  }
+});
