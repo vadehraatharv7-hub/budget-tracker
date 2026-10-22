@@ -86,14 +86,26 @@ const SECURITY_HEADERS = {
   'referrer-policy': 'no-referrer',
   'permissions-policy': 'camera=(), microphone=(), geolocation=()',
 };
-const failures = new Map(); // ip -> {n, until}
+// Failed logins / bad API tokens, per client IP. A failure only counts for FAIL_WINDOW; reaching FAIL_LIMIT inside that
+// window locks the IP out for the same time; a successful login clears the count, so ordinary typos never add up.
+const FAIL_LIMIT = Number(process.env.LOGIN_MAX_FAILURES) || 8;
+const FAIL_WINDOW_MS = (Number(process.env.LOGIN_WINDOW_SECONDS) || 15 * 60) * 1000;
+const failures = new Map(); // ip -> {n, first, until}
 const throttled = (ip) => (failures.get(ip)?.until || 0) > Date.now();
 function noteFailure(ip) {
-  const f = failures.get(ip) || { n: 0, until: 0 };
+  const now = Date.now();
+  let f = failures.get(ip);
+  if (!f || now - f.first > FAIL_WINDOW_MS) f = { n: 0, first: now, until: 0 }; // window (or lock-out) over: start fresh
   f.n += 1;
-  if (f.n >= 8) { f.until = Date.now() + 15 * 60_000; f.n = 0; }
+  if (f.n >= FAIL_LIMIT) f.until = now + FAIL_WINDOW_MS;
   failures.set(ip, f);
+  if (failures.size > 10_000) failures.delete(failures.keys().next().value); // bound memory under a distributed flood
 }
+const clearFailures = (ip) => failures.delete(ip);
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, f] of failures) if (now - f.first > FAIL_WINDOW_MS && f.until <= now) failures.delete(ip);
+}, 60_000).unref();
 const isHttps = (req) => req.socket.encrypted || req.headers['x-forwarded-proto'] === 'https';
 
 function send(res, status, data, headers = {}) {
@@ -167,8 +179,9 @@ const route = (method, path, auth, handler) => routes.push({ method, re: new Reg
 route('POST', '/api/login', 'none', async ({ body, res, req }) => {
   if (!PASSWORD) return { ok: true };
   const ip = clientIp(req);
-  if (throttled(ip)) throw new HttpError(429, 'Too many attempts — try again in 15 minutes');
+  if (throttled(ip)) throw new HttpError(429, `Too many attempts — try again in ${Math.max(1, Math.ceil((failures.get(ip).until - Date.now()) / 60_000))} minute(s)`);
   if (!safeEq(String(body.password || ''), PASSWORD)) { noteFailure(ip); throw new HttpError(401, 'Wrong password'); }
+  clearFailures(ip);
   res.setHeader('set-cookie', `bt_session=${newSession()}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_DAYS * 86400}${isHttps(req) ? '; Secure' : ''}`);
   return { ok: true };
 });
@@ -513,6 +526,7 @@ async function handleApi(req, res, url) {
     const ip = clientIp(req);
     if (throttled(ip)) throw new HttpError(429, 'Too many failed attempts');
     if (!hasApiToken(req, body)) { noteFailure(ip); throw new HttpError(401, 'Invalid API token'); }
+    clearFailures(ip);
   }
   const params = r.re.exec(url.pathname).groups || {};
   const out = await r.handler({ req, res, url, body, params });

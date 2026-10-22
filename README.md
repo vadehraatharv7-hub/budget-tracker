@@ -28,6 +28,7 @@ APP_PASSWORD=secret npm start
 | `DB_PATH` | `./data/budget.db` | SQLite file |
 | `TRUST_PROXY` | *(off)* | `1` behind a reverse proxy (client IP from X-Forwarded-For); `cloudflare` behind Cloudflare Tunnel (client IP from CF-Connecting-IP) |
 | `HOST` | `0.0.0.0` | Address to listen on; use `127.0.0.1` when only a local tunnel/proxy should reach the app |
+| `LOGIN_MAX_FAILURES` / `LOGIN_WINDOW_SECONDS` | `8` / `900` | Failed logins inside the window that lock an IP out (for the window); a success resets the count |
 | `ALLOWED_HOSTS` | *(any)* | Comma-separated hostnames; other `Host` headers get 421 (DNS-rebinding defence) |
 | `TZ` | system | Time zone for "today", reminders, recurring items |
 | `VAPID_SUBJECT` | `mailto:budget@example.com` | Contact used for web push |
