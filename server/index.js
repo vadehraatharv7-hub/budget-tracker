@@ -24,7 +24,12 @@ const MIME = {
 class HttpError extends Error { constructor(status, msg) { super(msg); this.status = status; } }
 const bad = (msg) => new HttpError(400, msg);
 
-const TRUST_PROXY = !!process.env.TRUST_PROXY;
+// TRUST_PROXY=1          behind a normal reverse proxy: client IP = first X-Forwarded-For hop
+// TRUST_PROXY=cloudflare behind Cloudflare Tunnel: client IP = CF-Connecting-IP (set by Cloudflare, not spoofable
+//                        from the internet; pair it with HOST=127.0.0.1 so nothing else can reach the app directly)
+const PROXY_MODE = process.env.TRUST_PROXY === 'cloudflare' ? 'cloudflare' : process.env.TRUST_PROXY ? 'forwarded' : '';
+const TRUST_PROXY = !!PROXY_MODE;
+const HOST = process.env.HOST || '0.0.0.0';
 const ALLOWED_HOSTS = (process.env.ALLOWED_HOSTS || '').split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
 const SESSION_DAYS = 90;
 const sha = (v) => createHash('sha256').update(v).digest('hex');
@@ -38,7 +43,10 @@ function newSession() {
   db.prepare('INSERT INTO sessions(id, expires) VALUES(?,?)').run(sha(token), Date.now() + SESSION_DAYS * 864e5);
   return token;
 }
-const clientIp = (req) => (TRUST_PROXY && req.headers['x-forwarded-for']?.split(',')[0].trim()) || req.socket.remoteAddress;
+const clientIp = (req) => {
+  const h = PROXY_MODE === 'cloudflare' ? req.headers['cf-connecting-ip'] : PROXY_MODE === 'forwarded' ? req.headers['x-forwarded-for']?.split(',')[0] : '';
+  return (h && String(h).trim()) || req.socket.remoteAddress;
+};
 const safeEq = (a, b) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 function cookies(req) {
@@ -542,7 +550,9 @@ async function serveStatic(req, res, url) {
 const server = http.createServer(async (req, res) => {
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
   if (isHttps(req)) res.setHeader('strict-transport-security', 'max-age=31536000');
-  if (ALLOWED_HOSTS.length && !ALLOWED_HOSTS.includes(String(req.headers.host || '').split(':')[0].toLowerCase())) {
+  // Loopback is always allowed: the deploy script's health check and cloudflared's local probes use it.
+  const hostName = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
+  if (ALLOWED_HOSTS.length && !ALLOWED_HOSTS.includes(hostName) && !['127.0.0.1', 'localhost', '[::1]'].includes(hostName)) {
     res.writeHead(421, { 'content-type': 'text/plain' }); return res.end('Misdirected request');
   }
   const url = new URL(req.url, 'http://x');
@@ -560,8 +570,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, HOST, () => {
   if (!PASSWORD) console.warn('\n⚠️  APP_PASSWORD is not set: anyone who can reach this port can read and change your data (and fetch the API token).\n   Set APP_PASSWORD, or keep the port reachable only from trusted networks.\n');
-  console.log(`Budget Tracker running on http://0.0.0.0:${PORT}${PASSWORD ? ' (password protected)' : ' (no APP_PASSWORD set — open on your network)'}`);
+  console.log(`Budget Tracker running on http://${HOST}:${PORT}${PASSWORD ? ' (password protected)' : ' (no APP_PASSWORD set — open on your network)'}`);
   startScheduler(runRecurring);
 });

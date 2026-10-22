@@ -26,7 +26,8 @@ APP_PASSWORD=secret npm start
 | `PORT` | `3000` | HTTP port |
 | `APP_PASSWORD` | *(none)* | Password for the web UI. **Set it** if anything beyond your LAN can reach the app |
 | `DB_PATH` | `./data/budget.db` | SQLite file |
-| `TRUST_PROXY` | *(off)* | Set to `1` behind a reverse proxy so throttling uses the real client IP and cookies get `Secure` |
+| `TRUST_PROXY` | *(off)* | `1` behind a reverse proxy (client IP from X-Forwarded-For); `cloudflare` behind Cloudflare Tunnel (client IP from CF-Connecting-IP) |
+| `HOST` | `0.0.0.0` | Address to listen on; use `127.0.0.1` when only a local tunnel/proxy should reach the app |
 | `ALLOWED_HOSTS` | *(any)* | Comma-separated hostnames; other `Host` headers get 421 (DNS-rebinding defence) |
 | `TZ` | system | Time zone for "today", reminders, recurring items |
 | `VAPID_SUBJECT` | `mailto:budget@example.com` | Contact used for web push |
@@ -38,7 +39,8 @@ Try it with sample data: `DB_PATH=./data/demo.db npm run seed:demo && DB_PATH=./
 Service workers and push notifications only work on **HTTPS** (or `localhost`). On iOS, push also requires the app to be
 **added to the Home Screen** (iOS 16.4+). Easiest options for a homelab:
 
-- **Tailscale**: `tailscale serve --bg 3000` gives you `https://<machine>.<tailnet>.ts.net` with a real certificate, reachable only from your devices — ideal, and it also lets Shortcuts reach the server when you're away from home.
+- **Cloudflare Tunnel** (what this project's Terraform sets up): `cloudflared` makes an outbound connection, Cloudflare serves HTTPS on your domain, and you open no router ports. Run the app with `HOST=127.0.0.1` and `TRUST_PROXY=cloudflare`. Setup: [docs/DEPLOY.md](docs/DEPLOY.md).
+- **Tailscale**: `tailscale serve --bg 3000` gives `https://<machine>.<tailnet>.ts.net` with a real certificate, reachable only from your own devices.
 - **Caddy / Traefik / Nginx Proxy Manager** in front, with a domain and Let's Encrypt.
 
 Then on iPhone: Safari → Share → **Add to Home Screen** → open it from the Home Screen → Settings → **Enable on this device**.
@@ -66,7 +68,7 @@ app lock (PIN + Face ID/Touch ID) · push alerts at 75%/100%, daily reminder, Su
 
 ## CI/CD
 
-GitHub Actions runs tests, CodeQL, dependency audit and a Docker smoke test on every PR, and deploys `main` to a Proxmox LXC over Tailscale. Setup and threat model: [docs/DEPLOY.md](docs/DEPLOY.md). `npm test` runs the same suite locally.
+GitHub Actions runs tests, CodeQL, dependency audit and a Docker smoke test on every PR, and deploys `main` to a Proxmox LXC over Tailscale SSH. The app itself is published to the internet with a Cloudflare Tunnel. Setup and threat model: [docs/DEPLOY.md](docs/DEPLOY.md). `npm test` runs the same suite locally.
 
 ## Security notes
 
