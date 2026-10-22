@@ -1,9 +1,7 @@
 name: CI
 
 on:
-  pull_request:
-  push:
-    branches-ignore: [main] # main is covered by deploy.yml, which calls this workflow
+  pull_request: # pushes to main are covered by deploy.yml, which calls this workflow
   workflow_call:
 
 permissions:

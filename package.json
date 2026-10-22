@@ -10,7 +10,7 @@
     "dev": "node --watch server/index.js",
     "icons": "node scripts/make-icons.js",
     "seed:demo": "node scripts/seed-demo.js",
-    "test": "node --test --test-concurrency=4 test/",
+    "test": "node --test --test-concurrency=4 \"test/*.test.js\"",
     "check": "node --check server/index.js && node --check public/app.js && node --check public/lock.js && node --check public/charts.js"
   },
   "dependencies": {
