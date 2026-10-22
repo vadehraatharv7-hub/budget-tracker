@@ -4,16 +4,37 @@
   "description": "Self-hosted budget tracker PWA with DKK/INR conversion, push notifications and iOS Shortcuts support",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.9" },
+  "engines": {
+    "node": ">=22.9"
+  },
   "scripts": {
     "start": "node --env-file-if-exists=.env server/index.js",
     "dev": "node --watch --env-file-if-exists=.env server/index.js",
+    "dev:web": "vite --config web/vite.config.ts",
+    "build": "vite build --config web/vite.config.ts",
+    "typecheck": "tsc --noEmit -p web/tsconfig.json",
     "icons": "node scripts/make-icons.js",
     "seed:demo": "node scripts/seed-demo.js",
     "test": "node --test --test-concurrency=4 \"test/*.test.js\"",
-    "check": "node --check server/index.js && node --check public/app.js && node --check public/lock.js && node --check public/charts.js"
+    "test:web": "vitest run --config web/vite.config.ts",
+    "check": "node --check server/index.js && npm run typecheck"
   },
   "dependencies": {
     "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
+    "@tanstack/react-query": "^5.104.5",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "lucide-react": "^1.61.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-router-dom": "^7.18.4",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
   }
 }

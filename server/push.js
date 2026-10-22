@@ -1,6 +1,6 @@
 import webpush from 'web-push';
 import { db, getSetting, setSetting } from './db.js';
-import { buildSummary, shortStatus } from './summary.js';
+import { buildSummary, shortStatus, fmt as fmtMoney } from './summary.js';
 import { localDate } from './rates.js';
 
 let keys = getSetting('vapid');
@@ -66,16 +66,16 @@ export async function checkThresholds(month) {
   if (!getSetting('alert_thresholds')) return;
   const s = buildSummary(month);
   const b = s.base;
-  const fmt = (n) => `${Math.round(n).toLocaleString('en-US')} ${b}`;
+  const fmt = (n) => fmtMoney(n, b);
   for (const c of s.categories) {
     if (!c.budget || c.pct == null) continue;
     const level = c.pct >= 1 ? 100 : c.pct >= 0.75 ? 75 : 0;
     for (const l of [75, 100]) {
       if (level >= l && once(`cat:${c.id}:${month}:${l}`)) {
         await notify({
-          title: l === 100 ? `${c.icon} ${c.name} budget used up` : `${c.icon} ${c.name} at 75%`,
-          body: l === 100 ? `You’ve spent ${fmt(c.spent)} of ${fmt(c.budget)} — ${fmt(c.spent - c.budget)} over.`
-                          : `${fmt(c.remaining)} left of ${fmt(c.budget)} for the rest of the month.`,
+          title: l === 100 ? `${c.name} limit exceeded` : `${c.name} at 75% of its limit`,
+          body: l === 100 ? `You have spent ${fmt(c.spent)} of ${fmt(c.budget)}, which is ${fmt(c.spent - c.budget)} over.`
+                          : `${fmt(c.remaining)} of ${fmt(c.budget)} remains for the rest of the month.`,
           tag: `cat-${c.id}`,
         });
       }
@@ -86,7 +86,7 @@ export async function checkThresholds(month) {
     for (const l of [75, 100]) {
       if (pct >= l / 100 && once(`total:${month}:${l}`)) {
         await notify({
-          title: l === 100 ? '🚨 Monthly budget exceeded' : '⚠️ 75% of monthly budget used',
+          title: l === 100 ? 'Monthly budget exceeded' : 'Monthly budget at 75%',
           body: shortStatus(s), tag: 'total',
         });
       }
@@ -100,9 +100,9 @@ export async function sendDailyReminder() {
   const spentToday = s.daily[s.dayNow - 1]?.spent || 0;
   const b = s.base;
   const body = spentToday === 0
-    ? `Nothing logged today yet.${s.allowance != null ? ` You can spend about ${Math.round(s.allowance)} ${b} a day to stay on budget.` : ''}`
-    : `${Math.round(spentToday)} ${b} logged today. ${shortStatus(s)}`;
-  return notify({ title: '💰 Log today’s spending', body, tag: 'daily' });
+    ? `Nothing recorded today yet.${s.allowance != null ? ` Spending about ${fmtMoney(s.allowance, b)} a day keeps you on budget.` : ''}`
+    : `${fmtMoney(spentToday, b)} recorded today. ${shortStatus(s)}`;
+  return notify({ title: 'Record today’s spending', body, tag: 'daily' });
 }
 
 export async function sendWeeklyRecap() {
@@ -111,8 +111,8 @@ export async function sendWeeklyRecap() {
   const top = [...s.categories].sort((a, b) => b.spent - a.spent)[0];
   const tip = s.insights.find((i) => i.kind === 'warn' || i.kind === 'bad');
   return notify({
-    title: '📊 Your week in money',
-    body: `${shortStatus(s)}${top && top.spent > 0 ? ` Biggest: ${top.icon} ${top.name}.` : ''}${tip ? ` ${tip.text}` : ''}`,
+    title: 'Weekly summary',
+    body: `${shortStatus(s)}${top && top.spent > 0 ? ` Largest category: ${top.name}.` : ''}${tip ? ` ${tip.text}` : ''}`,
     tag: 'weekly',
   });
 }

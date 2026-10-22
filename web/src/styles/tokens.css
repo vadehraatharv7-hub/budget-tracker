@@ -1,0 +1,96 @@
+/* Design tokens. Calm, neutral surfaces; one accent; colour is reserved for status and data. */
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-sunken: #f1f3f6;
+  --border: #e3e6eb;
+  --border-strong: #cdd3dc;
+  --text: #0f1419;
+  --text-2: #475467;
+  --text-3: #667085;
+  --accent: #1f4fd8;
+  --accent-hover: #1a43b8;
+  --accent-soft: #eaf0fe;
+  --accent-ink: #ffffff;
+  --pos: #067647;
+  --pos-soft: #e7f5ee;
+  --warn: #93560a;
+  --warn-soft: #fdf3e2;
+  --neg: #b42318;
+  --neg-soft: #fdecea;
+  --bar-ok: #1f4fd8;
+  --bar-warn: #d98e04;
+  --bar-neg: #d92d20;
+  --chart-grid: #e8ebf0;
+  --focus: #1f4fd8;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.14), 0 2px 6px rgba(16, 24, 40, 0.06);
+
+  --font: 'Inter Variable', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --nav-width: 240px;
+  --tabbar-height: 60px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #0c0e12;
+    --surface: #13161c;
+    --surface-sunken: #1a1e26;
+    --border: #232832;
+    --border-strong: #323a47;
+    --text: #e8ebf0;
+    --text-2: #a9b1be;
+    --text-3: #8993a2;
+    --accent: #6f9bff;
+    --accent-hover: #8aafff;
+    --accent-soft: #172440;
+    --accent-ink: #0c1530;
+    --pos: #4cc38a;
+    --pos-soft: #10261b;
+    --warn: #e6b04a;
+    --warn-soft: #2a2110;
+    --neg: #f28b82;
+    --neg-soft: #301a19;
+    --bar-ok: #6f9bff;
+    --bar-warn: #e6b04a;
+    --bar-neg: #f28b82;
+    --chart-grid: #232832;
+    --focus: #8aafff;
+    --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0c0e12;
+  --surface: #13161c;
+  --surface-sunken: #1a1e26;
+  --border: #232832;
+  --border-strong: #323a47;
+  --text: #e8ebf0;
+  --text-2: #a9b1be;
+  --text-3: #8993a2;
+  --accent: #6f9bff;
+  --accent-hover: #8aafff;
+  --accent-soft: #172440;
+  --accent-ink: #0c1530;
+  --pos: #4cc38a;
+  --pos-soft: #10261b;
+  --warn: #e6b04a;
+  --warn-soft: #2a2110;
+  --neg: #f28b82;
+  --neg-soft: #301a19;
+  --bar-ok: #6f9bff;
+  --bar-warn: #e6b04a;
+  --bar-neg: #f28b82;
+  --chart-grid: #232832;
+  --focus: #8aafff;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}

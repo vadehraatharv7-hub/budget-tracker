@@ -21,9 +21,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - name: Syntax check
+      - name: Type check (server syntax and web TypeScript)
         run: npm run check
-      - name: Tests (API, auth, security regressions)
+      - name: Web unit tests
+        run: npm run test:web
+      - name: Build the web app
+        run: npm run build
+      - name: Server tests (API, auth, security, proxy, throttling)
         run: npm test
 
   audit:
