@@ -127,9 +127,13 @@ function render() {
   renderNav();
   const v = state.view;
   const monthViews = ['home', 'activity'];
+  const hr = new Date().getHours();
+  $('#eyebrow').textContent = { home: hr < 5 ? 'Late night' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening',
+    activity: 'Your spending', budget: 'Plan your month', convert: 'DKK ⇄ INR', settings: 'Preferences' }[v];
   $('#monthlabel').textContent = v === 'convert' ? 'Convert' : v === 'settings' ? 'Settings' : monthName(state.month, true);
-  if (v === 'convert' || v === 'settings') $('#monthbar').querySelectorAll('.icon-btn').forEach((b) => (b.style.visibility = 'hidden'));
-  else $('#monthbar').querySelectorAll('.icon-btn').forEach((b) => (b.style.visibility = 'visible'));
+  const plain = v === 'convert' || v === 'settings'; // no month navigation on these screens
+  $('#monthbar').querySelectorAll('.icon-btn').forEach((b) => { b.style.display = plain ? 'none' : ''; b.style.visibility = 'visible'; });
+  $('#monthbar').style.marginLeft = plain ? '0' : '';
   $('#monthbar').querySelector('[data-action="next-month"]').style.visibility = (v === 'convert' || v === 'settings' || state.month >= monthNow()) ? 'hidden' : 'visible';
 
   const el = $('#view');
@@ -138,11 +142,27 @@ function render() {
   // animate rings and bars from zero
   requestAnimationFrame(() => {
     el.querySelectorAll('.arc').forEach((a) => { a.style.strokeDashoffset = a.dataset.final; });
-    el.querySelectorAll('.bar > i').forEach((i) => { i.style.width = i.dataset.w; });
+    el.querySelectorAll('.bar > i, .flowbar > i').forEach((i) => { i.style.width = i.dataset.w; });
   });
+  el.querySelectorAll('[data-count]').forEach(countUp);
   if (v === 'convert') bindConvert();
   updateBanner();
 }
+
+// Numbers ease up from zero on first paint (skipped for reduced-motion users).
+function countUp(node) {
+  const target = Number(node.dataset.count), cur = node.dataset.cur;
+  const fmt = (n) => Math.round(n).toLocaleString(cur === 'INR' ? 'en-IN' : 'en-US');
+  if (!Number.isFinite(target) || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { node.textContent = fmt(target || 0); return; }
+  const t0 = performance.now(), dur = 800;
+  const step = (t) => {
+    const p = Math.min(1, (t - t0) / dur), e = 1 - (1 - p) ** 3;
+    node.textContent = fmt(target * e);
+    if (p < 1 && node.isConnected) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+const curMark = (cur, n, extra = '') => (cur === 'INR' ? `<span class="cur pre">₹</span>${n}` : `${n}<span class="cur">kr</span>`) + extra;
 
 // ───────────────────────── HOME ─────────────────────────
 function viewHome() {
@@ -156,27 +176,34 @@ function viewHome() {
     paceChip = s.pace <= 0 ? `<span class="chip good">✓ ${m(-s.pace)} under pace</span>` : `<span class="chip ${s.projected > s.budget ? 'bad' : 'warn'}">▲ ${m(s.pace)} over pace</span>`;
   }
 
+  const pctUsed = hasBudget ? Math.round((s.spent / s.budget) * 100) : 0;
+  const stats = s.isCurrent
+    ? [['Spent', m(s.spent)], ['Today', m(s.spentToday)], ['Safe / day', s.allowance != null && !over ? m(s.allowance) : m(0)]]
+    : [['Spent', m(s.spent)], ['Budget', m(s.budget)], ['Net', `${s.net >= 0 ? '+' : '−'}${m(Math.abs(s.net))}`]];
+
   const hero = !hasBudget ? `
-    <div class="card"><div class="empty"><div class="big">🎯</div><h2>Set your monthly budget</h2>
+    <div class="card hero setup"><div class="empty"><div class="big">🎯</div><h2>Set your monthly budget</h2>
       <p>Give every krone a job. Set a total and split it across categories — that’s how you spend less.</p>
       <button class="btn primary" data-nav="budget">Set up budget</button></div>
       ${s.spent > 0 ? `<p class="center muted" style="text-align:center">Spent so far: <b>${m(s.spent)}</b></p>` : ''}</div>` : `
     <div class="card hero">
-      ${ring({ spent: s.spent, budget: s.budget, center: m(Math.abs(s.remaining)), sub: over ? 'over budget' : 'left' })}
-      <div class="kpis">
-        <div class="row between"><div class="kpi"><div class="label">Spent</div><div class="value big">${m(s.spent)}</div></div></div>
-        <div class="kpi"><div class="label">of budget</div><div class="value">${m(s.budget)}</div></div>
-        ${s.isCurrent && s.allowance != null ? `<div class="kpi"><div class="label">Safe to spend / day</div><div class="value">${over ? m(0) : m(s.allowance)}</div></div>` : ''}
-        ${s.isCurrent ? `<div class="kpi"><div class="label">Spent today</div><div class="value">${m(s.spentToday)}</div></div>` : ''}
-        <div>${paceChip}</div>
+      <div class="hero-top"><span class="eyebrow">${over ? 'Over budget by' : s.isCurrent ? 'Left to spend' : 'Left over'}</span>${paceChip}</div>
+      <div class="hero-main">
+        <div>
+          <div class="hero-amount">${curMark(b, `<span data-count="${Math.abs(s.remaining)}" data-cur="${b}">${Math.round(Math.abs(s.remaining)).toLocaleString('en-US')}</span>`)}</div>
+          <div class="hero-sub">of ${m(s.budget)}${s.isCurrent && s.daysLeft ? ` · ${s.daysLeft} day${s.daysLeft === 1 ? '' : 's'} left` : ''}</div>
+        </div>
+        ${ring({ spent: s.spent, budget: s.budget, size: 92, stroke: 9, center: `${pctUsed}%`, sub: 'used', onDark: true })}
       </div>
+      <div class="hero-stats">${stats.map(([l, v]) => `<div><div class="l">${l}</div><div class="v">${v}</div></div>`).join('')}</div>
     </div>`;
 
   const flow = (s.income > 0 || s.spent > 0) ? `
     <div class="card"><h2>Cash flow <span class="small">${s.income > 0 ? `${Math.max(0, Math.round((s.net / s.income) * 100))}% of income kept` : 'log income to see your net'}</span></h2>
-      <div class="flow"><div><div class="kpi"><div class="label">Income</div></div><div class="v pos">${m(s.income)}</div></div>
-        <div><div class="kpi"><div class="label">Spent</div></div><div class="v">${m(s.spent)}</div></div>
-        <div><div class="kpi"><div class="label">Net</div></div><div class="v ${s.net >= 0 ? 'pos' : 'neg'}">${s.net >= 0 ? '+' : '−'}${m(Math.abs(s.net))}</div></div></div>
+      <div class="flow"><div><div class="l">Income</div><div class="v pos">${m(s.income)}</div></div>
+        <div><div class="l">Spent</div><div class="v">${m(s.spent)}</div></div>
+        <div><div class="l">Net</div><div class="v ${s.net >= 0 ? 'pos' : 'neg'}">${s.net >= 0 ? '+' : '−'}${m(Math.abs(s.net))}</div></div></div>
+      ${s.income > 0 ? `<div class="flowbar" role="img" aria-label="${Math.round((s.spent / s.income) * 100)}% of income spent"><i data-w="${Math.min(100, (s.spent / s.income) * 100)}%"></i></div>` : ''}
     </div>` : '';
 
   const ios = isIOS && !isStandalone && !ls.get('bt_hide_ios', false) ? `
@@ -229,7 +256,7 @@ function viewHome() {
 function catRow(c, m) {
   const hasLimit = c.budget > 0;
   const pct = hasLimit ? c.spent / c.budget : 0;
-  const color = !hasLimit ? c.color : pct >= 1 ? 'var(--bad)' : pct >= 0.75 ? 'var(--warn)' : 'var(--good)';
+  const color = !hasLimit ? c.color : pct >= 1 ? 'var(--bar-bad)' : pct >= 0.75 ? 'var(--bar-warn)' : 'var(--bar-good)';
   return `<button class="cat" data-action="filter-cat" data-id="${c.id ?? 'none'}">
     <div class="head"><span class="name"><span class="ico" style="background:${tint(c.color)}">${c.icon}</span>${esc(c.name)}</span>
       <span class="amt"><b>${m(c.spent)}</b>${hasLimit ? `<span class="faint"> / ${m(c.budget)}</span>` : ''}</span></div>
@@ -271,7 +298,7 @@ function viewActivity() {
   for (const i of incomes) slot(i.date).push({ ...i, kind: 'income' });
   const list = [...byDay].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([d, es]) => `
     <div class="day-head"><span>${dayLabel(d)}</span><span>${money(es.filter((e) => e.kind === 'expense').reduce((s, e) => s + e.amount_base, 0))}</span></div>
-    ${es.map((e) => (e.kind === 'income' ? incomeRow(e) : txRow(e))).join('')}`).join('');
+    <div class="txgroup">${es.map((e) => (e.kind === 'income' ? incomeRow(e) : txRow(e))).join('')}</div>`).join('');
 
   return `<div class="search"><input type="search" id="search" placeholder="Search notes or categories" value="${esc(state.search)}" aria-label="Search expenses"></div>
     ${filters}
@@ -318,9 +345,9 @@ function viewBudget() {
         <input data-f="name" value="${esc(c.name)}" aria-label="Category name">
         <input data-f="budget" inputmode="decimal" value="${c.budget || ''}" placeholder="0" aria-label="Monthly limit for ${esc(c.name)}">
       </div>
-      <div class="row" style="gap:6px;margin:-2px 0 6px 52px;flex-wrap:wrap" data-cid="${c.id}">
-        ${PALETTE.map((col) => `<button class="swatch" data-action="set-color" data-id="${c.id}" data-color="${col}" aria-label="Colour ${col}" aria-pressed="${c.color === col}" style="width:20px;height:20px;border-radius:50%;border:2px solid ${c.color === col ? 'var(--text)' : 'transparent'};background:${col};padding:0"></button>`).join('')}
-        <button class="btn small danger" data-action="del-cat" data-id="${c.id}" style="margin-left:auto;padding:3px 10px">Remove</button>
+      <div class="row" style="gap:6px;margin:2px 0 10px" data-cid="${c.id}">
+        ${PALETTE.map((col) => `<button class="swatch" data-action="set-color" data-id="${c.id}" data-color="${col}" aria-label="Colour ${col}" aria-pressed="${c.color === col}" style="border-color:${c.color === col ? 'var(--text)' : 'transparent'};background:${col}"></button>`).join('')}
+        <button class="btn small danger" data-action="del-cat" data-id="${c.id}" style="margin-left:auto">Remove</button>
       </div>`).join('')}
       <button class="btn block" data-action="add-cat" style="margin-top:12px">＋ New category</button>
     </div>
@@ -446,7 +473,7 @@ function viewSettings() {
       ${pushState === 'off' ? '<button class="btn primary" data-action="push-on">Enable on this device</button>' : ''}
       ${pushState === 'on' ? '<button class="btn" data-action="push-test">Send test</button><button class="btn" data-action="push-off">Turn off</button>' : ''}
     </div>
-    <div class="set-row"><div><div class="t">Budget alerts</div><div class="muted small">At 80% and 100% of any limit</div></div>${sw('s-alerts', s.alert_thresholds)}</div>
+    <div class="set-row"><div><div class="t">Budget alerts</div><div class="muted small">At 75% and 100% of any limit</div></div>${sw('s-alerts', s.alert_thresholds)}</div>
     <div class="set-row"><div><div class="t">Daily reminder</div><div class="muted small">“Log today’s spending” with your daily allowance</div></div>${sw('s-daily', s.daily_reminder)}</div>
     <div class="set-row"><div class="t">Reminder time</div><input type="time" id="s-time" value="${s.reminder_time}" style="width:auto"></div>
     <div class="set-row"><div><div class="t">Sunday recap</div><div class="muted small">Weekly summary and one tip</div></div>${sw('s-weekly', s.weekly_recap)}</div>
@@ -541,12 +568,12 @@ function openSheet(item, kind = 'expense', mode = 'entry') {
     <div class="amount-wrap"><input name="amount" id="f-amount" inputmode="decimal" autocomplete="off" placeholder="0" value="${item ? item.amount : ''}" aria-label="Amount" required>
       <div class="seg" role="group" aria-label="Currency"><button type="button" data-action="set-cur" data-cur="DKK" aria-pressed="${cur === 'DKK'}">DKK</button><button type="button" data-action="set-cur" data-cur="INR" aria-pressed="${cur === 'INR'}">INR</button></div></div>
     <div class="muted small" id="f-preview" style="margin-top:-8px;min-height:1.3em"></div>
-    ${isInc ? '' : `<div class="cat-grid" id="f-cats">${orderedCats().map((c) => `<button type="button" class="cat-pick" data-action="pick-cat" data-id="${c.id}" aria-pressed="${c.id === catId}"><span class="e">${c.icon}</span>${esc(c.name)}</button>`).join('')}</div>`}
+    ${isInc ? '' : `<div class="cat-grid" id="f-cats">${orderedCats().map((c) => `<button type="button" class="cat-pick" data-action="pick-cat" data-id="${c.id}" aria-pressed="${c.id === catId}"><span class="e">${c.icon}</span><span class="n">${esc(c.name)}</span></button>`).join('')}</div>`}
     <div class="row"><label class="field" style="flex:1">${isInc ? 'Source' : 'Note'}<input name="note" id="f-note" ${isInc ? '' : 'list="note-list"'} maxlength="120" placeholder="${isInc ? 'e.g. Salary, SU, from home' : 'e.g. Netto, Metro ticket'}" value="${esc(item?.note ?? item?.source ?? '')}"></label>
       ${mode === 'recurring' ? '<label class="field" style="width:96px">Day of month<input id="f-day" inputmode="numeric" value="1" maxlength="2"></label>'
         : `<label class="field">Date<input type="date" name="date" id="f-date" value="${item?.date || (state.month === monthNow() ? localToday() : `${state.month}-01`)}" max="${localToday()}"></label>`}</div>
     <datalist id="note-list">${notes.map((n) => `<option value="${esc(n)}">`).join('')}</datalist>
-    <div class="row">${edit ? '<button type="button" class="btn danger" data-action="delete-expense">Delete</button>' : ''}<button class="btn primary" style="flex:1" type="submit">${mode === 'recurring' ? 'Add recurring' : edit ? 'Save changes' : isInc ? 'Add income' : 'Add expense'}</button></div>
+    <div class="row sheet-actions">${edit ? '<button type="button" class="btn danger" data-action="delete-expense">Delete</button>' : ''}<button class="btn primary" style="flex:1" type="submit">${mode === 'recurring' ? 'Add recurring' : edit ? 'Save changes' : isInc ? 'Add income' : 'Add expense'}</button></div>
   </form>`;
   sheet.setAttribute('aria-labelledby', 'sheet-title');
   if (!sheet.open) sheet.showModal();

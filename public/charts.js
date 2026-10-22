@@ -18,10 +18,12 @@ function niceMax(v) {
 }
 
 /** Budget ring: spent / budget. Colour shifts with how much of the budget is gone. */
-export function ring({ spent, budget, size = 148, stroke = 14, center, sub }) {
+export function ring({ spent, budget, size = 148, stroke = 14, center, sub, onDark = false }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r;
   const pct = budget > 0 ? spent / budget : 0;
-  const color = pct >= 1 ? 'var(--bad)' : pct >= 0.75 ? 'var(--warn)' : 'var(--accent)';
+  // On the gradient hero card the arc is white, shifting to amber / red as the budget runs out.
+  const color = onDark ? (pct >= 1 ? '#ff8f8f' : pct >= 0.75 ? '#ffd27a' : '#ffffff')
+    : pct >= 1 ? 'var(--bad)' : pct >= 0.75 ? 'var(--warn)' : 'var(--accent)';
   const off = c * (1 - Math.min(1, pct));
   return `<div class="ring" role="img" aria-label="${esc(center)} ${esc(sub)}">
     <svg viewBox="0 0 ${size} ${size}"><circle class="track" cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke-width="${stroke}"/>
@@ -54,8 +56,8 @@ export function donut(items, { size = 150, stroke = 22, centerTop = '', centerBo
  * Cumulative spend vs. the straight-line budget pace.
  * One y-axis (money); the dashed line is where you "should" be today.
  */
-export function paceChart(daily, budget, fmt, { w = 640, h = 210 } = {}) {
-  const L = 38, R = 8, T = 10, B = 24;
+export function paceChart(daily, budget, fmt, { w = 640, h = 270 } = {}) {
+  const L = 56, R = 10, T = 16, B = 38;
   const days = daily.length;
   const shown = daily.filter((d) => !d.future);
   const maxVal = niceMax(Math.max(budget, ...daily.map((d) => d.cum), 1) * 1.02);
@@ -63,74 +65,74 @@ export function paceChart(daily, budget, fmt, { w = 640, h = 210 } = {}) {
   const y = (v) => T + (1 - v / maxVal) * (h - T - B);
   const grid = [0, 0.5, 1].map((f) => {
     const v = maxVal * f;
-    return `<line class="grid" x1="${L}" x2="${w - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${compact(v)}</text>`;
+    return `<line class="grid" x1="${L}" x2="${w - R}" y1="${y(v)}" y2="${y(v)}"/><text x="${L - 10}" y="${y(v) + 7}" text-anchor="end">${compact(v)}</text>`;
   }).join('');
-  const xt = [1, Math.ceil(days / 2), days].map((d) => `<text x="${x(d)}" y="${h - 6}" text-anchor="${d === 1 ? 'start' : d === days ? 'end' : 'middle'}">${d}</text>`).join('');
+  const xt = [1, Math.ceil(days / 2), days].map((d) => `<text x="${x(d)}" y="${h - 8}" text-anchor="${d === 1 ? 'start' : d === days ? 'end' : 'middle'}">${d}</text>`).join('');
   const line = shown.map((d, i) => `${i ? 'L' : 'M'}${x(d.day).toFixed(1)},${y(d.cum).toFixed(1)}`).join('');
   const last = shown[shown.length - 1];
   const area = shown.length ? `${line}L${x(last.day)},${y(0)}L${x(1)},${y(0)}Z` : '';
-  const ideal = budget > 0 ? `<line x1="${x(1)}" y1="${y(budget / days)}" x2="${x(days)}" y2="${y(budget)}" stroke="var(--text-3)" stroke-width="2" stroke-dasharray="5 5"/>` : '';
+  const ideal = budget > 0 ? `<line x1="${x(1)}" y1="${y(budget / days)}" x2="${x(days)}" y2="${y(budget)}" stroke="var(--text-3)" stroke-width="3.5" stroke-dasharray="9 9" stroke-linecap="round"/>` : '';
   const budgetLine = budget > 0 ? `<line class="grid" x1="${L}" x2="${w - R}" y1="${y(budget)}" y2="${y(budget)}" stroke="var(--bad)" style="stroke:var(--bad);opacity:.35"/>` : '';
   const step = (w - L - R) / Math.max(1, days - 1);
   const hits = daily.filter((d) => !d.future).map((d) =>
     `<rect class="hit" x="${x(d.day) - step / 2}" y="${T}" width="${step}" height="${h - T - B}" data-tip="${esc(`Day ${d.day}\nTotal ${fmt(d.cum)}${d.ideal != null ? `\nPace ${fmt(d.ideal)}` : ''}\nThat day ${fmt(d.spent)}`)}"/>`).join('');
-  const dot = last ? `<circle cx="${x(last.day)}" cy="${y(last.cum)}" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>` : '';
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative spending against budget pace">
+  const dot = last ? `<circle cx="${x(last.day)}" cy="${y(last.cum)}" r="8" fill="var(--accent)" stroke="var(--surface)" stroke-width="3.5"/>` : '';
+  return `<svg class="chart wide" viewBox="0 0 ${w} ${h}" role="img" aria-label="Cumulative spending against budget pace">
+    <defs><linearGradient id="g-pace" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.32"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>
     ${grid}${budgetLine}${ideal}
-    ${area ? `<path d="${area}" fill="var(--accent)" opacity=".12"/>` : ''}
-    ${line ? `<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
+    ${area ? `<path d="${area}" fill="url(#g-pace)"/>` : ''}
+    ${line ? `<path d="${line}" fill="none" stroke="var(--accent)" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>` : ''}
     ${dot}${xt}${hits}</svg>
     <div class="legend"><span><i class="line" style="background:var(--accent)"></i>Spent so far</span>${budget > 0 ? '<span><i class="dash"></i>Budget pace</span>' : ''}</div>`;
 }
 
 /** Daily spend bars, 4px rounded tops, 2px gaps; the tallest day is labelled directly. */
-export function dailyBars(daily, fmt, { w = 640, h = 110 } = {}) {
-  const L = 38, R = 8, T = 14, B = 20;
+export function dailyBars(daily, fmt, { w = 640, h = 170 } = {}) {
+  const L = 56, R = 10, T = 26, B = 8;
   const days = daily.length;
   const max = niceMax(Math.max(...daily.map((d) => d.spent), 1));
   const slot = (w - L - R) / days;
-  const bw = Math.max(3, slot - 2);
+  const bw = Math.max(5, slot - 3);
   const y = (v) => T + (1 - v / max) * (h - T - B);
   const top = daily.reduce((a, d) => (d.spent > a.spent ? d : a), daily[0]);
   const bars = daily.map((d) => {
     const x0 = L + (d.day - 1) * slot + (slot - bw) / 2;
     const bh = Math.max(0, h - B - y(d.spent));
-    const rr = Math.min(4, bw / 2, bh);
+    const rr = Math.min(6, bw / 2, bh);
     const path = bh > 0 ? `M${x0},${h - B}V${y(d.spent) + rr}Q${x0},${y(d.spent)} ${x0 + rr},${y(d.spent)}H${x0 + bw - rr}Q${x0 + bw},${y(d.spent)} ${x0 + bw},${y(d.spent) + rr}V${h - B}Z` : '';
     return `${path ? `<path d="${path}" fill="var(--accent)" opacity="${d.future ? 0 : .85}"/>` : ''}
       ${d.future ? '' : `<rect class="hit" x="${L + (d.day - 1) * slot}" y="${T}" width="${slot}" height="${h - T - B}" data-tip="${esc(`Day ${d.day}\n${fmt(d.spent)}`)}"/>`}`;
   }).join('');
-  const label = top.spent > 0 ? `<text x="${Math.min(w - R, Math.max(L, L + (top.day - 0.5) * slot))}" y="${y(top.spent) - 4}" text-anchor="middle" style="fill:var(--text-2);font-weight:600">${compact(top.spent)}</text>` : '';
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Daily spending">
+  const label = top.spent > 0 ? `<text x="${Math.min(w - R, Math.max(L, L + (top.day - 0.5) * slot))}" y="${y(top.spent) - 7}" text-anchor="middle" style="fill:var(--text-2);font-weight:600">${compact(top.spent)}</text>` : '';
+  return `<svg class="chart wide" viewBox="0 0 ${w} ${h}" role="img" aria-label="Daily spending">
     <line class="grid" x1="${L}" x2="${w - R}" y1="${h - B}" y2="${h - B}"/>
-    <text x="${L - 6}" y="${T + 4}" text-anchor="end">${compact(max)}</text>
-    <text x="${L - 6}" y="${h - B + 4}" text-anchor="end">0</text>
+    <text x="${L - 10}" y="${h - B + 2}" text-anchor="end">0</text>
     ${bars}${label}</svg>`;
 }
 
 /** Six-month trend; current month is highlighted, earlier months are muted. */
-export function trendBars(trend, fmt, monthLabel, { w = 640, h = 150 } = {}) {
-  const L = 8, R = 8, T = 22, B = 24;
+export function trendBars(trend, fmt, monthLabel, { w = 640, h = 210 } = {}) {
+  const L = 8, R = 8, T = 34, B = 36;
   const max = niceMax(Math.max(...trend.map((t) => t.spent), 1));
-  const slot = (w - L - R) / trend.length, bw = Math.min(54, slot - 14);
+  const slot = (w - L - R) / trend.length, bw = Math.min(70, slot - 22);
   const y = (v) => T + (1 - v / max) * (h - T - B);
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Spending over the last six months">
+  return `<svg class="chart wide" viewBox="0 0 ${w} ${h}" role="img" aria-label="Spending over the last six months">
     <line class="grid" x1="${L}" x2="${w - R}" y1="${h - B}" y2="${h - B}"/>
     ${trend.map((t, i) => {
       const x0 = L + i * slot + (slot - bw) / 2, last = i === trend.length - 1;
-      const bh = Math.max(0, h - B - y(t.spent)), rr = Math.min(6, bh);
+      const bh = Math.max(0, h - B - y(t.spent)), rr = Math.min(9, bh);
       const path = bh > 0 ? `M${x0},${h - B}V${y(t.spent) + rr}Q${x0},${y(t.spent)} ${x0 + rr},${y(t.spent)}H${x0 + bw - rr}Q${x0 + bw},${y(t.spent)} ${x0 + bw},${y(t.spent) + rr}V${h - B}Z` : '';
       return `<g>${path ? `<path d="${path}" fill="${last ? 'var(--accent)' : 'var(--text-3)'}" opacity="${last ? 1 : .35}"/>` : ''}
-        <text x="${x0 + bw / 2}" y="${h - 6}" text-anchor="middle" style="${last ? 'fill:var(--text);font-weight:650' : ''}">${monthLabel(t.month)}</text>
-        ${t.spent > 0 ? `<text x="${x0 + bw / 2}" y="${y(t.spent) - 6}" text-anchor="middle" style="fill:var(--text-2);font-weight:600">${compact(t.spent)}</text>` : ''}
+        <text x="${x0 + bw / 2}" y="${h - 9}" text-anchor="middle" style="${last ? 'fill:var(--text);font-weight:650' : ''}">${monthLabel(t.month)}</text>
+        ${t.spent > 0 ? `<text x="${x0 + bw / 2}" y="${y(t.spent) - 9}" text-anchor="middle" style="fill:var(--text-2);font-weight:600">${compact(t.spent)}</text>` : ''}
         <rect class="hit" x="${L + i * slot}" y="${T - 14}" width="${slot}" height="${h - T - B + 14}" data-tip="${esc(`${monthLabel(t.month, true)}\n${fmt(t.spent)}`)}"/></g>`;
     }).join('')}</svg>`;
 }
 
 /** Exchange-rate sparkline with endpoint dot and hover. points: [{date, v}] */
-export function sparkline(points, fmtV, { w = 640, h = 120 } = {}) {
+export function sparkline(points, fmtV, { w = 640, h = 190 } = {}) {
   if (points.length < 2) return '<p class="muted small">Rate history will appear after a few days.</p>';
-  const L = 6, R = 6, T = 12, B = 20;
+  const L = 8, R = 8, T = 30, B = 34;
   const vs = points.map((p) => p.v);
   let lo = Math.min(...vs), hi = Math.max(...vs);
   const pad = (hi - lo) * 0.15 || hi * 0.01;
@@ -140,11 +142,12 @@ export function sparkline(points, fmtV, { w = 640, h = 120 } = {}) {
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
   const step = (w - L - R) / (points.length - 1);
   const li = points.length - 1;
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" role="img" aria-label="Exchange rate over time">
-    <path d="${d}L${x(li)},${h - B}L${x(0)},${h - B}Z" fill="var(--accent)" opacity=".1"/>
-    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-    <circle cx="${x(li)}" cy="${y(points[li].v)}" r="5" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/>
-    <text x="${L}" y="${h - 4}">${esc(points[0].date.slice(5))}</text><text x="${w - R}" y="${h - 4}" text-anchor="end">${esc(points[li].date.slice(5))}</text>
-    <text x="${L}" y="9">${fmtV(Math.max(...vs))}</text>
+  return `<svg class="chart wide" viewBox="0 0 ${w} ${h}" role="img" aria-label="Exchange rate over time">
+    <defs><linearGradient id="g-spark" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--accent);stop-opacity:.28"/><stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/></linearGradient></defs>
+    <path d="${d}L${x(li)},${h - B}L${x(0)},${h - B}Z" fill="url(#g-spark)"/>
+    <path d="${d}" fill="none" stroke="var(--accent)" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${x(li)}" cy="${y(points[li].v)}" r="8" fill="var(--accent)" stroke="var(--surface)" stroke-width="3.5"/>
+    <text x="${L}" y="${h - 8}">${esc(points[0].date.slice(5))}</text><text x="${w - R}" y="${h - 8}" text-anchor="end">${esc(points[li].date.slice(5))}</text>
+    <text x="${L}" y="14">${fmtV(Math.max(...vs))}</text>
     ${points.map((p, i) => `<rect class="hit" x="${x(i) - step / 2}" y="${T - 8}" width="${step}" height="${h - T - B + 8}" data-tip="${esc(`${p.date}\n${fmtV(p.v)}`)}"/>`).join('')}</svg>`;
 }

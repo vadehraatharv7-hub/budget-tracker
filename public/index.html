@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Budget Tracker</title>
 <meta name="description" content="Track daily spending, stay inside your monthly budget.">
-<meta name="theme-color" content="#fcfcfb" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#121211" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f3f4f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#090a0f" media="(prefers-color-scheme: dark)">
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="/icons/icon-192.png">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
@@ -14,6 +14,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Budget">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -25,10 +26,13 @@
   </aside>
   <main>
     <header class="top">
-      <div class="month" id="monthbar">
-        <button class="icon-btn" data-action="prev-month" aria-label="Previous month">‹</button>
-        <button class="month-label" data-action="this-month" id="monthlabel"></button>
-        <button class="icon-btn" data-action="next-month" aria-label="Next month">›</button>
+      <div class="titles">
+        <div class="eyebrow" id="eyebrow"></div>
+        <div class="month" id="monthbar">
+          <button class="icon-btn" data-action="prev-month" aria-label="Previous month">‹</button>
+          <button class="month-label" data-action="this-month" id="monthlabel"></button>
+          <button class="icon-btn" data-action="next-month" aria-label="Next month">›</button>
+        </div>
       </div>
       <button class="icon-btn gear" data-nav="settings" aria-label="Settings">⚙︎</button>
     </header>
