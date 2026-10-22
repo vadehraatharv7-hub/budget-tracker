@@ -6,7 +6,11 @@ export function localDate(d) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
+// NO_NETWORK=1 (tests, air-gapped installs): never call the rate APIs; use a manual rate override instead.
+const offline = () => !!process.env.NO_NETWORK;
+
 async function getJson(url) {
+  if (offline()) throw new Error('NO_NETWORK is set');
   const res = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { accept: 'application/json' } });
   if (!res.ok) throw new Error(`${url} -> ${res.status}`);
   return res.json();

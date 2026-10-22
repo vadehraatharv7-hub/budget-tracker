@@ -64,6 +64,10 @@ income + cash flow · per-category budgets with green/amber (≥75%)/red states 
 6-month charts · "ways to spend less" insights · recurring items (rent, Spotify, salary) · savings goals with monthly target ·
 app lock (PIN + Face ID/Touch ID) · push alerts at 75%/100%, daily reminder, Sunday recap · offline entry queue · CSV import/export, JSON backup/restore.
 
+## CI/CD
+
+GitHub Actions runs tests, CodeQL, dependency audit and a Docker smoke test on every PR, and deploys `main` to a Proxmox LXC over Tailscale. Setup and threat model: [docs/DEPLOY.md](docs/DEPLOY.md). `npm test` runs the same suite locally.
+
 ## Security notes
 
 Password (HMAC-signed HttpOnly cookie, login throttling), separate API token for Shortcuts, strict CSP, no third-party scripts or

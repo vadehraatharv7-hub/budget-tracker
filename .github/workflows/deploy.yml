@@ -1,0 +1,75 @@
+name: Deploy to homelab
+
+# Every push to main: run CI, then deploy that exact commit to the Proxmox LXC over Tailscale.
+# Manual run: deploy any branch, tag or commit (this is also how you roll back).
+# Nothing deploys until the repository variable DEPLOY_ENABLED is "true" (see docs/DEPLOY.md).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch, tag or commit SHA to deploy (empty = the commit this run was started on)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-homelab
+  cancel-in-progress: false # never interrupt a deploy half-way
+
+jobs:
+  ci:
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: Deploy
+    needs: ci
+    if: ${{ !cancelled() && vars.DEPLOY_ENABLED == 'true' && (needs.ci.result == 'success' || needs.ci.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: homelab # add required reviewers here if you want a manual approval gate
+    steps:
+      - name: Choose what to deploy
+        id: target
+        env:
+          INPUT_REF: ${{ inputs.ref }}
+          SHA: ${{ github.sha }}
+        run: |
+          ref="${INPUT_REF:-$SHA}"
+          # The value is passed to a root-level script on the server: allow only safe git ref characters.
+          if ! printf '%s' "$ref" | grep -Eq '^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$'; then
+            echo "::error::Refusing unsafe ref"; exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Join the tailnet
+        uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf # v4.3.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy over Tailscale SSH
+        env:
+          HOST: ${{ vars.TS_HOST || 'budget-tracker' }}
+          REF: ${{ steps.target.outputs.ref }}
+        run: |
+          # budget-update fetches the ref, installs dependencies, restarts the service, health-checks it
+          # and rolls back automatically (non-zero exit) if the new version does not come up.
+          tailscale ssh "deploy@${HOST}" "sudo /usr/local/bin/budget-update '${REF}'"
+
+      - name: Summary
+        if: always()
+        env:
+          REF: ${{ steps.target.outputs.ref }}
+          STATUS: ${{ job.status }}
+        run: |
+          {
+            echo "### Homelab deploy: ${STATUS}"
+            echo "Ref: \`${REF}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

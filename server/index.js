@@ -61,7 +61,7 @@ async function readBody(req) {
   let size = 0;
   for await (const c of req) {
     size += c.length;
-    if (size > 1e6) throw bad('Body too large');
+    if (size > 1e6) throw new HttpError(413, 'Body too large');
     chunks.push(c);
   }
   if (!chunks.length) return {};
@@ -552,7 +552,11 @@ const server = http.createServer(async (req, res) => {
   } catch (e) {
     const status = e.status || 500;
     if (status === 500) console.error(e);
-    if (!res.headersSent) send(res, status, { error: status === 500 ? 'Server error' : e.message });
+    if (!res.headersSent) {
+      // Don't keep reading an oversized upload: answer, then drop the connection.
+      send(res, status, { error: status === 500 ? 'Server error' : e.message }, status === 413 ? { connection: 'close' } : {});
+      if (status === 413) res.once('finish', () => req.destroy());
+    }
   }
 });
 
