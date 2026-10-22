@@ -1,12 +1,40 @@
 # Budget Tracker
 
-A self-hosted budget tracker PWA for your homelab. Log expenses and income in **DKK or INR**, split your budget into
-**categories**, and watch a *safe-to-spend-per-day* number tell you whether you're on track. Works on phone and laptop,
-installs to the home screen, sends push notifications, and can be automated from the iOS **Shortcuts** app.
+A self-hosted personal-finance app, built and operated end to end: a React + TypeScript progressive web app, a
+dependency-light Node API, and the infrastructure and delivery pipeline that runs it at
+[budget.atharvvadehra.dev](https://budget.atharvvadehra.dev) from a Proxmox homelab.
 
-- Server: Node 22.9+ with built-in `node:sqlite` and one runtime dependency (`web-push`). Web app: React + TypeScript, built with Vite into `dist/`.
-- Rates: ECB reference rates via [Frankfurter](https://frankfurter.dev) (fallback open.er-api.com), refreshed once a day, with history. Each transaction stores its original amount, currency **and the rate at the time**, so history never drifts. Manual rate override on the Currency screen.
-- Data lives in one SQLite file (`DB_PATH`). Export CSV / JSON backup from Settings.
+I built it to cut my own spending while living in Denmark and sending money to India, so it tracks **DKK and INR**
+with the daily ECB rate, turns a monthly budget into a **safe-to-spend-per-day** number, and logs purchases
+automatically from an iPhone through Apple Pay and Shortcuts.
+
+![Overview on desktop](docs/screenshots/overview.png)
+
+<p>
+  <img src="docs/screenshots/mobile-overview.png" alt="Overview on a phone" width="260">
+  <img src="docs/screenshots/budget.png" alt="Budget page" width="560">
+</p>
+
+*Screenshots use generated demo data (`npm run seed:demo`).*
+
+## What this project demonstrates
+
+| Area | What is in the repo |
+|---|---|
+| **Full-stack engineering** | React 19, TypeScript, Vite, TanStack Query and React Router on the front end. A hand-written Node 24 HTTP server on `node:sqlite` with one runtime dependency (`web-push`). |
+| **Product thinking** | Quick entry in one line (`120 netto groceries`), budget pace and projected month end, insights, recurring items, goals, two currencies where every transaction stores the rate it was recorded at. |
+| **Security** | A written [audit](SECURITY-AUDIT.md) with 14 findings fixed (CSRF origin check, stored-markup injection, CSV formula injection, SSRF through push endpoints, DNS rebinding, throttling). Strict CSP, hashed server-side sessions, non-root read-only container. |
+| **Testing** | 41 API, auth, security, proxy and static-serving tests that start the real server, plus 29 web unit tests. All run in CI on every pull request. |
+| **CI/CD** | GitHub Actions: type check, tests, build, `npm audit`, dependency review, CodeQL, Docker smoke test, SBOM and provenance. Deploys run over Tailscale SSH with a health check and automatic rollback. |
+| **Infrastructure as code** | The server is created by Terraform in a [separate repo](https://github.com/vadehraatharv7-hub/homelab): Proxmox LXC, Cloudflare Tunnel and bootstrap of the app, with a nightly Proxmox backup on top. |
+| **Frontend craft** | A small design system (tokens, primitives), accessible native `<dialog>`s, SVG charts drawn at measured width, light and dark themes, an offline entry queue, and mobile fixes (no zoom-on-focus, no horizontal scroll). |
+
+Deeper reading: **[Architecture and design decisions](docs/ARCHITECTURE.md)** · [Hosting and CI/CD](docs/DEPLOY.md) · [Security audit](SECURITY-AUDIT.md).
+
+## Tech stack
+
+`TypeScript` `React 19` `Vite` `TanStack Query` `Node 24` `SQLite (WAL)` `Web Push / VAPID` `WebAuthn` `Service Worker`
+`Docker` `GitHub Actions` `Terraform` `Proxmox` `Cloudflare Tunnel` `Tailscale`
 
 ## Run it
 
