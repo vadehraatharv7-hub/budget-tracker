@@ -1,5 +1,5 @@
-const CACHE = 'budget-v3';
-const SHELL = ['/', '/styles.css', '/app.js', '/charts.js', '/lock.js', '/manifest.webmanifest', '/icons/icon-192.png'];
+const CACHE = 'budget-v5';
+const SHELL = ['/', '/styles.css', '/app.js', '/charts.js', '/lock.js', '/fonts/inter-latin.woff2', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

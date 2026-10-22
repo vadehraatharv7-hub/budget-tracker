@@ -106,7 +106,7 @@ export function buildSummary(month, todayStr = localDate(new Date())) {
   return s;
 }
 
-const fmt = (n, base) => `${Math.round(n).toLocaleString('en-US')} ${base}`;
+const fmt = (n, base) => (base === 'INR' ? `₹${Math.round(n).toLocaleString('en-IN')}` : `${Math.round(n).toLocaleString('en-US')} kr`);
 
 function buildInsights(s) {
   const out = [];
