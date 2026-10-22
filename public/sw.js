@@ -1,4 +1,4 @@
-const CACHE = 'budget-v5';
+const CACHE = 'budget-v6';
 const SHELL = ['/', '/styles.css', '/app.js', '/charts.js', '/lock.js', '/fonts/inter-latin.woff2', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (e) => {
@@ -30,16 +30,17 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
-  // App shell: stale-while-revalidate.
-  e.respondWith(
-    caches.match(req, { ignoreSearch: true }).then((hit) => {
-      const net = fetch(req).then((res) => {
-        if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); }
-        return res;
-      }).catch(() => hit || caches.match('/'));
-      return hit || net;
-    }),
-  );
+  // App shell: network first (so a deploy shows up immediately), cache as the offline fallback.
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    try {
+      const res = await Promise.race([fetch(req), new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))]);
+      if (res.ok) cache.put(req, res.clone());
+      return res;
+    } catch {
+      return (await cache.match(req, { ignoreSearch: true })) || (await cache.match('/')) || Response.error();
+    }
+  })());
 });
 
 self.addEventListener('push', (e) => {

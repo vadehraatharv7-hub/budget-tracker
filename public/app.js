@@ -6,7 +6,7 @@ const $ = (s, el = document) => el.querySelector(s);
 const state = {
   settings: null, categories: [], rate: null, apiToken: '', vapidPublicKey: '', today: '', pushDevices: 0,
   month: '', view: 'home', summary: null, expenses: [], filterCat: 'all', search: '', loaded: false, loadedAt: 0,
-  usage: [], incomes: [], recurring: [], goals: [], filterCur: 'all', rates: null, convFrom: 'DKK', convAmount: '1000',
+  usage: [], editCat: null, incomes: [], recurring: [], goals: [], filterCur: 'all', rates: null, convFrom: 'DKK', convAmount: '1000',
 };
 const PALETTE = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948', '#8b8a85'];
 const VIEWS = {
@@ -138,6 +138,7 @@ function render() {
 
   const el = $('#view');
   if (!state.loaded && monthViews.includes(v)) { el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>'; return; }
+  el.className = `view-${v}`;
   el.innerHTML = { home: viewHome, activity: viewActivity, budget: viewBudget, convert: viewConvert, settings: viewSettings }[v]();
   // animate rings and bars from zero
   requestAnimationFrame(() => {
@@ -250,7 +251,7 @@ function viewHome() {
 
   const empty = s.spent === 0 && hasBudget ? `<div class="card"><div class="empty"><div class="big">🧾</div><p>No expenses yet this month. Tap <b>＋</b> to add your first one.</p></div></div>` : '';
 
-  return `${ios}${hero}${empty}${flow}<div class="grid-2"><div>${insights}${catList}</div><div>${split}${pace}${trend}${spots}</div></div>`;
+  return `${ios}<div class="home-top">${hero}${empty}${flow}</div><div class="grid-2"><div>${insights}${catList}</div><div>${split}${pace}${trend}${spots}</div></div>`;
 }
 
 function catRow(c, m) {
@@ -327,45 +328,72 @@ function txRow(e) {
 // ───────────────────────── BUDGET ─────────────────────────
 function viewBudget() {
   const s = state.summary, b = base();
+  const m = (n) => money(n, b);
   const alloc = state.categories.reduce((t, c) => t + c.budget, 0);
   const total = state.settings.monthly_budget;
   const target = total > 0 ? total : alloc;
   const left = target - alloc;
-  const bars = state.categories.filter((c) => c.budget > 0).map((c) => `<i style="width:${Math.min(100, (c.budget / Math.max(target, alloc, 1)) * 100)}%;background:${c.color}" data-tip="${esc(`${c.name}\n${money(c.budget)}`)}"></i>`).join('');
-  return `<div class="card"><h2>Monthly budget</h2>
-      <label class="field">Total you want to spend each month (${b})<input id="total-budget" inputmode="decimal" value="${total || ''}" placeholder="e.g. 15000"></label>
-      <div class="alloc" style="margin-top:14px">${bars}</div>
-      <p class="small ${left < 0 ? '' : 'muted'}" style="margin:8px 0 0;${left < 0 ? 'color:var(--bad);font-weight:600' : ''}">
-        ${alloc === 0 ? 'Now split it across categories below.' : left >= 0 ? `${money(alloc)} assigned · ${money(left)} unassigned` : `${money(alloc)} assigned — ${money(-left)} more than your total`}</p>
-    </div>
-    <div class="card"><h2>Category limits <span class="small">per month</span></h2>
-      ${state.categories.map((c) => `
-      <div class="cat-edit" data-cid="${c.id}">
-        <input class="emoji" data-f="icon" value="${esc(c.icon)}" aria-label="Icon for ${esc(c.name)}" maxlength="4">
-        <input data-f="name" value="${esc(c.name)}" aria-label="Category name">
-        <input data-f="budget" inputmode="decimal" value="${c.budget || ''}" placeholder="0" aria-label="Monthly limit for ${esc(c.name)}">
+  const denom = Math.max(target, alloc, 1);
+  const stat = new Map((s?.categories || []).map((c) => [c.id, c]));
+  const segs = state.categories.filter((c) => c.budget > 0).sort((a, c) => c.budget - a.budget);
+  const bars = segs.map((c) => `<i style="width:${(c.budget / denom) * 100}%;background:${c.color}" data-tip="${esc(`${c.name}\n${m(c.budget)} · ${Math.round((c.budget / denom) * 100)}%`)}"></i>`).join('');
+  const legend = segs.slice(0, 5).map((c) => `<span><i style="background:${c.color}"></i>${esc(c.name)} ${Math.round((c.budget / denom) * 100)}%</span>`).join('')
+    + (segs.length > 5 ? `<span class="faint">+${segs.length - 5} more</span>` : '');
+  const statusChips = alloc === 0 ? '<span class="chip info">Next: give each category a limit</span>'
+    : left >= 0 ? `<span class="chip good">${m(alloc)} assigned</span><span class="chip">${m(left)} unassigned</span>`
+      : `<span class="chip bad">${m(alloc)} assigned — ${m(-left)} over your total</span>`;
+  const cur = b === 'INR' ? '₹' : 'kr';
+
+  const hero = `<div class="card budget-hero">
+      <div class="eyebrow">Monthly budget</div>
+      <label class="big-input" aria-label="Monthly budget in ${b}">${b === 'INR' ? `<span>${cur}</span>` : ''}<input id="total-budget" inputmode="decimal" value="${total || ''}" placeholder="0" style="width:${Math.max(2, String(total || 0).length) * 0.96}ch">${b === 'INR' ? '' : `<span>${cur}</span>`}</label>
+      <div class="alloc">${bars}</div>
+      ${legend ? `<div class="alloc-legend">${legend}</div>` : ''}
+      <div class="chips">${statusChips}</div>
+    </div>`;
+
+  const rows = state.categories.map((c) => {
+    const st = stat.get(c.id) || { spent: 0, prev: 0 };
+    const has = c.budget > 0, pct = has ? st.spent / c.budget : 0;
+    const color = pct >= 1 ? 'var(--bar-bad)' : pct >= 0.75 ? 'var(--bar-warn)' : 'var(--bar-good)';
+    const goal = Math.round(st.prev * 0.9);
+    const open = state.editCat === c.id;
+    return `<div class="bcat${open ? ' open' : ''}" data-cid="${c.id}">
+      <div class="bcat-main">
+        <button class="bcat-ico" data-action="toggle-edit" data-id="${c.id}" aria-expanded="${open}" aria-label="Edit ${esc(c.name)}" style="background:${tint(c.color, 20)}">${c.icon}</button>
+        <div class="bcat-info"><div class="bcat-name">${esc(c.name)}</div>
+          <div class="bcat-sub">${m(st.spent)} spent</div>${st.prev > 0 ? `<div class="bcat-sub">${m(st.prev)} last month</div>` : ''}</div>
+        <label class="bcat-limit"><input data-f="budget" inputmode="decimal" value="${c.budget || ''}" placeholder="0" aria-label="Monthly limit for ${esc(c.name)}"><span>${cur}</span></label>
       </div>
-      <div class="row" style="gap:6px;margin:2px 0 10px" data-cid="${c.id}">
-        ${PALETTE.map((col) => `<button class="swatch" data-action="set-color" data-id="${c.id}" data-color="${col}" aria-label="Colour ${col}" aria-pressed="${c.color === col}" style="border-color:${c.color === col ? 'var(--text)' : 'transparent'};background:${col}"></button>`).join('')}
-        <button class="btn small danger" data-action="del-cat" data-id="${c.id}" style="margin-left:auto">Remove</button>
-      </div>`).join('')}
-      <button class="btn block" data-action="add-cat" style="margin-top:12px">＋ New category</button>
-    </div>
-    <div class="card"><h2>Recurring <span class="small">auto-added each month</span></h2>
+      ${has ? `<div class="bar"><i class="${pct > 1 ? 'over' : ''}" data-w="${Math.min(100, pct * 100)}%" style="width:0;background:${color}"></i></div>` : ''}
+      ${st.prev > 0 && goal !== c.budget ? `<button class="hint" data-action="cut10" data-id="${c.id}" data-v="${goal}">✂︎ Aim 10% lower: ${m(goal)}</button>` : ''}
+      <div class="bcat-edit">
+        <div class="row"><input class="emoji" data-f="icon" value="${esc(c.icon)}" aria-label="Icon" maxlength="4"><input data-f="name" value="${esc(c.name)}" aria-label="Category name"></div>
+        <div class="swatches">${PALETTE.map((col) => `<button class="swatch" data-action="set-color" data-id="${c.id}" data-color="${col}" aria-label="Colour ${col}" aria-pressed="${c.color === col}" style="border-color:${c.color === col ? 'var(--text)' : 'transparent'};background:${col}"></button>`).join('')}</div>
+        <button class="btn small danger" data-action="del-cat" data-id="${c.id}">Remove category</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  const cats = `<div class="card"><h2>Category limits <span class="small">tap an icon to edit</span></h2>${rows}
+      <button class="btn block" data-action="add-cat" style="margin-top:14px">＋ New category</button></div>`;
+
+  const recurring = `<div class="card"><h2>Recurring <span class="small">auto-added each month</span></h2>
       ${state.recurring.length ? state.recurring.map((r) => { const c = catById(r.category_id); return `<div class="mini-row"><span class="ico">${r.kind === 'income' ? '💰' : (c?.icon || '🔁')}</span>
         <span class="mid"><div class="title" style="font-weight:600">${esc(r.note || c?.name || 'Recurring')}${r.active ? '' : ' <span class="faint small">(paused)</span>'}</div><div class="muted small">${r.kind === 'income' ? 'Income' : esc(c?.name || 'Uncategorised')} · day ${r.day} · ${money(r.amount, r.currency)}</div></span>
         <button class="btn small" data-action="toggle-rec" data-id="${r.id}">${r.active ? 'Pause' : 'Resume'}</button><button class="btn small danger" data-action="del-rec" data-id="${r.id}" aria-label="Remove">✕</button></div>`; }).join('') : '<p class="muted small" style="margin-top:0">Rent, phone plan, Spotify, a monthly transfer from home… define them once.</p>'}
-      <button class="btn block" data-action="add-rec" style="margin-top:12px">＋ Add recurring</button>
-    </div>
-    <div class="card"><h2>Savings goals</h2>
-      ${state.goals.length ? state.goals.map(goalRow).join('') : '<p class="muted small" style="margin-top:0">Set a target and a deadline — we’ll tell you what to put aside each month.</p>'}
-      <button class="btn block" data-action="add-goal" style="margin-top:12px">＋ New goal</button>
-    </div>
-    <div class="card"><h2>Tips to cut spending</h2>
-      <div class="insight"><span class="dot info">1</span><span>Fund essentials first (housing, groceries), then set <b>tighter</b> limits on eating out, shopping and subscriptions.</span></div>
-      <div class="insight"><span class="dot info">2</span><span>Aim for each category to land 10% below last month — the Home screen shows you the pace daily.</span></div>
-      <div class="insight"><span class="dot info">3</span><span>Turn on budget alerts in Settings so you hear about overspending at 80%, not at 120%.</span></div>
+      <button class="btn block" data-action="add-rec" style="margin-top:14px">＋ Add recurring</button>
     </div>`;
+  const goals = `<div class="card"><h2>Savings goals</h2>
+      ${state.goals.length ? state.goals.map(goalRow).join('') : '<p class="muted small" style="margin-top:0">Set a target and a deadline — we’ll tell you what to put aside each month.</p>'}
+      <button class="btn block" data-action="add-goal" style="margin-top:14px">＋ New goal</button>
+    </div>`;
+  const tips = `<div class="card"><h2>Tips to cut spending</h2>
+      <div class="insight"><span class="dot info">1</span><span>Fund essentials first (rent, groceries), then set <b>tighter</b> limits on eating out, shopping and subscriptions.</span></div>
+      <div class="insight"><span class="dot info">2</span><span>Use <b>“Aim 10% below last month”</b> on the categories you want to shrink — the Home screen then tracks your pace daily.</span></div>
+      <div class="insight"><span class="dot info">3</span><span>Keep budget alerts on in Settings so you hear about overspending at 75%, not at 120%.</span></div>
+    </div>`;
+  return `<div class="grid-2"><div>${hero}${cats}</div><div>${recurring}${goals}${tips}</div></div>`;
 }
 
 function goalRow(g) {
@@ -656,6 +684,8 @@ document.addEventListener('click', async (ev) => {
       case 'lock-change': if (await lock.verifyPin('Enter current PIN') && await lock.setupPin()) { toast('PIN changed — set up Face ID again if you use it'); render(); } break;
       case 'lock-remove': if (await lock.verifyPin('Enter PIN to turn off')) { lock.removeLock(); toast('App lock off'); render(); } break;
       case 'lock-now': lock.lock(); break;
+      case 'toggle-edit': state.editCat = state.editCat === Number(id) ? null : Number(id); render(); break;
+      case 'cut10': { await api(`/api/categories/${id}`, { method: 'PUT', body: { budget: Number(a.dataset.v) } }); const c = catById(Number(id)); c.budget = Number(a.dataset.v); await load(); toast(`${c.name} limit set to 10% below last month`); break; }
       case 'add': openSheet(); break;
       case 'edit-income': openSheet(state.incomes.find((i) => i.id === Number(id)), 'income'); break;
       case 'set-kind': { const form = $('#sheetform'); const keep = { amount: $('#f-amount').value, note: $('#f-note').value }; openSheet(null, a.dataset.kind, form.dataset.mode); $('#f-amount').value = keep.amount; $('#f-note').value = keep.note; break; }
@@ -714,6 +744,7 @@ document.addEventListener('keydown', (ev) => {
 });
 document.addEventListener('input', (ev) => {
   if (ev.target.id === 'f-amount') updatePreview();
+  if (ev.target.id === 'total-budget') ev.target.style.width = `${Math.max(2, ev.target.value.length) * 0.96}ch`;
   if (ev.target.id === 'search') { state.search = ev.target.value; const pos = ev.target.selectionStart; render(); const s = $('#search'); s.focus(); s.setSelectionRange(pos, pos); }
 });
 document.addEventListener('focusin', (ev) => { if (ev.target.matches('[data-select]')) ev.target.select(); });
@@ -736,8 +767,8 @@ document.addEventListener('change', async (ev) => {
       t.value = ''; toast(`Restored ${r.expenses} expenses`); await bootstrap(); await load();
     }
     else if (t.id === 'total-budget') { const v = parseFloat(t.value.replace(',', '.')) || 0; await api('/api/settings', { method: 'PUT', body: { monthly_budget: v } }); state.settings.monthly_budget = v; await load(); render(); toast('Budget saved'); }
-    else if (t.closest('.cat-edit')) {
-      const row = t.closest('.cat-edit'), c = catById(Number(row.dataset.cid)), f = t.dataset.f;
+    else if (t.closest('.bcat')) {
+      const row = t.closest('.bcat'), c = catById(Number(row.dataset.cid)), f = t.dataset.f;
       const val = f === 'budget' ? parseFloat(t.value.replace(',', '.')) || 0 : t.value.trim();
       if (f === 'name' && !val) { t.value = c.name; return; }
       const updated = await api(`/api/categories/${c.id}`, { method: 'PUT', body: { [f]: val } });
@@ -810,7 +841,15 @@ async function init() {
   applyTheme();
   lock.watchBackground();
   if (lock.enabled()) lock.lock(); // cover the app before anything renders
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    // When a new version of the app activates, reload once so the page and its scripts match.
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController && !reloading) { reloading = true; location.reload(); }
+    });
+    navigator.serviceWorker.register('/sw.js').then((reg) => reg.update()).catch(() => {});
+  }
   const sess = await fetch('/api/session').then((r) => r.json()).catch(() => null);
   if (sess && !sess.authed) return showLogin();
   try { await bootstrap(); } catch (e) { if (e.message === 'Login required') return; $('#view').innerHTML = `<div class="card"><div class="empty"><div class="big">📡</div><p>Can’t reach the server.</p><button class="btn" data-action="reload">Retry</button></div></div>`; $('#app').hidden = false; return; }
