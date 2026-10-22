@@ -177,7 +177,8 @@
 }
 .kpi__value {
   margin-top: 4px;
-  font-size: 22px;
+  overflow-wrap: anywhere;
+  font-size: clamp(17px, 5.4vw, 22px);
   line-height: 1.2;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -210,11 +211,13 @@
 
 .split {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   margin-top: 16px;
 }
 .split > div {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-content: start;
   min-width: 0;
@@ -226,6 +229,7 @@
 }
 .two-col {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -235,6 +239,7 @@
   }
   .two-col > div {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     align-content: start;
     min-width: 0;
@@ -242,6 +247,7 @@
 }
 .two-col > div {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-content: start;
   min-width: 0;
@@ -496,11 +502,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 10px 16px;
   padding: 14px 20px;
 }
 .setting + .setting {
   border-top: 1px solid var(--border);
+}
+.setting__text {
+  flex: 1 1 200px;
+  min-width: 0;
 }
 .setting__text p {
   margin-top: 2px;
@@ -849,4 +860,25 @@
   display: flex;
   flex-wrap: wrap;
   gap: 2px 14px;
+}
+
+.tabbar a {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 380px) {
+  .tabbar a {
+    font-size: 10px;
+  }
+  .page {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+@media (min-width: 700px) {
+  .kpi__value {
+    font-size: 22px;
+  }
 }

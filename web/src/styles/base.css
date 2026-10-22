@@ -9,10 +9,15 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  /* Taps are taps: no double-tap-to-zoom delay or magnification on buttons and rows. */
+  touch-action: manipulation;
 }
 
 body {
   margin: 0;
+  max-width: 100%;
+  /* Safety net: nothing may make the page scroll sideways. */
+  overflow-x: clip;
   background: var(--bg);
   color: var(--text);
   font: 400 14px/1.5 var(--font);
@@ -113,5 +118,25 @@ th.num {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+code {
+  overflow-wrap: anywhere;
+}
+
+/*
+ * iOS Safari zooms the whole page when an input with text smaller than 16px gets focus, and leaves it zoomed and
+ * scrollable sideways. Keep every form control at 16px on touch devices and small screens.
+ */
+@media (pointer: coarse), (max-width: 999px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+  .input,
+  .select {
+    height: 42px;
   }
 }
