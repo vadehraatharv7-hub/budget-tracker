@@ -1,5 +1,5 @@
 # Stage 1: build the web app (Vite + TypeScript). Dev dependencies stay in this stage.
-FROM node:24-alpine AS build
+FROM node:25-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -7,7 +7,7 @@ COPY web ./web
 RUN npm run build
 
 # Stage 2: the runtime image only carries the server, its one production dependency and the built web app.
-FROM node:24-alpine
+FROM node:25-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --omit=dev
