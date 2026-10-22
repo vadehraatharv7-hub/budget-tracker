@@ -1,0 +1,17 @@
+{
+  "name": "budget-tracker",
+  "version": "1.0.0",
+  "description": "Self-hosted budget tracker PWA with DKK/INR conversion, push notifications and iOS Shortcuts support",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22.5" },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "icons": "node scripts/make-icons.js",
+    "seed:demo": "node scripts/seed-demo.js"
+  },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}

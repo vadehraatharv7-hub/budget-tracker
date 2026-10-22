@@ -1,0 +1,22 @@
+services:
+  budget:
+    build: .
+    container_name: budget-tracker
+    restart: unless-stopped
+    ports:
+      - "3000:3000"                  # bind to a LAN/Tailscale IP, e.g. "192.168.1.10:3000:3000", rather than all interfaces
+    environment:
+      TZ: Europe/Copenhagen          # reminders and "today" follow this
+      APP_PASSWORD: change-me        # REQUIRED in practice: protects the web UI (Shortcuts use the API token instead)
+      VAPID_SUBJECT: mailto:you@example.com
+      # TRUST_PROXY: "1"             # set when behind Caddy/Traefik/Nginx so login throttling sees the real client IP
+      # ALLOWED_HOSTS: budget.example.com,budget.tailnet.ts.net   # optional: reject other Host headers (DNS-rebinding defence)
+    volumes:
+      - budget-data:/data            # SQLite database + push keys live here — back this volume up
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+volumes:
+  budget-data:
